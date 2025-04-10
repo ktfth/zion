@@ -1,0 +1,73 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+func main() {
+	// Obter diretório atual
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Erro ao obter diretório atual: %v\n", err)
+		return
+	}
+	fmt.Printf("Diretório atual: %s\n", wd)
+
+	// Criar diretório de teste
+	testDir := filepath.Join(wd, "test_project")
+	fmt.Printf("Criando diretório: %s\n", testDir)
+	
+	// Remover diretório se já existir
+	if _, err := os.Stat(testDir); !os.IsNotExist(err) {
+		fmt.Printf("Diretório já existe, removendo: %s\n", testDir)
+		os.RemoveAll(testDir)
+	}
+	
+	// Criar diretório
+	if err := os.MkdirAll(testDir, 0755); err != nil {
+		fmt.Printf("Erro ao criar diretório: %v\n", err)
+		return
+	}
+	
+	// Verificar se o diretório foi criado
+	if _, err := os.Stat(testDir); os.IsNotExist(err) {
+		fmt.Printf("Falha ao criar diretório: %v\n", err)
+		return
+	}
+	fmt.Printf("Diretório criado com sucesso: %s\n", testDir)
+	
+	// Criar um arquivo de teste
+	testFile := filepath.Join(testDir, "test.txt")
+	fmt.Printf("Criando arquivo: %s\n", testFile)
+	if err := os.WriteFile(testFile, []byte("Teste de criação de arquivo"), 0644); err != nil {
+		fmt.Printf("Erro ao criar arquivo: %v\n", err)
+		return
+	}
+	
+	// Verificar se o arquivo foi criado
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		fmt.Printf("Falha ao criar arquivo: %v\n", err)
+		return
+	}
+	fmt.Printf("Arquivo criado com sucesso: %s\n", testFile)
+	
+	// Criar subdiretório
+	subDir := filepath.Join(testDir, "subdir")
+	fmt.Printf("Criando subdiretório: %s\n", subDir)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		fmt.Printf("Erro ao criar subdiretório: %v\n", err)
+		return
+	}
+	
+	// Criar arquivo no subdiretório
+	subFile := filepath.Join(subDir, "subfile.txt")
+	fmt.Printf("Criando arquivo no subdiretório: %s\n", subFile)
+	if err := os.WriteFile(subFile, []byte("Teste de criação de arquivo em subdiretório"), 0644); err != nil {
+		fmt.Printf("Erro ao criar arquivo no subdiretório: %v\n", err)
+		return
+	}
+	
+	fmt.Println("Teste concluído com sucesso!")
+}
