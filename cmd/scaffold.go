@@ -34,27 +34,20 @@ var scaffoldCmd = &cobra.Command{
 		// Criar a estrutura do projeto com base na resposta JSON
 		fmt.Println("Criando estrutura do projeto...")
 		
-		// Usar o extrator que gera a saída em formato TOML
-		fmt.Println("Extraindo e criando arquivos com saída em TOML...")
-		err = ai.ExtractAndCreateTomlProject(projectName, response)
+		// Se falhar, tentar o método anterior
+		fmt.Println("Extraindo direto...")
+		err = ai.ExtractAndCreateProject(projectName, response)
 		if err != nil {
-			fmt.Printf("Erro ao extrair e criar arquivos com TOML: %v\nTentando método alternativo...\n", err)
+			fmt.Printf("Erro ao extrair e criar arquivos: %v\nSalvando resposta bruta...\n", err)
 			
-			// Se falhar, tentar o método anterior
-			fmt.Println("Tentando extrator direto...")
-			err = ai.ExtractAndCreateProject(projectName, response)
+			// Se falhar novamente, salvar a resposta bruta em um arquivo
+			fmt.Println("Salvando resposta bruta...")
+			err = ai.SaveRawResponse(projectName, response)
 			if err != nil {
-				fmt.Printf("Erro ao extrair e criar arquivos: %v\nSalvando resposta bruta...\n", err)
-				
-				// Se falhar novamente, salvar a resposta bruta em um arquivo
-				fmt.Println("Salvando resposta bruta...")
-				err = ai.SaveRawResponse(projectName, response)
-				if err != nil {
-					fmt.Println("Erro ao salvar resposta bruta:", err)
-					os.Exit(1)
-				}
-				fmt.Println("Resposta bruta salva. Consulte o README.md no diretório do projeto para instruções.")
+				fmt.Println("Erro ao salvar resposta bruta:", err)
+				os.Exit(1)
 			}
+			fmt.Println("Resposta bruta salva. Consulte o README.md no diretório do projeto para instruções.")
 		}
 
 		// Executa plugins registrados (para estender as funcionalidades)

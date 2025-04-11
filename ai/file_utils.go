@@ -76,3 +76,48 @@ func CreateFile(projectName, filePath, content string) error {
 	
 	return nil
 }
+
+// isJSONFile verifica se o arquivo é um arquivo JSON ou similar que não deve ter escapes adicionados
+func isJSONFile(filePath string) bool {
+	jsonFiles := []string{
+		"package.json",
+		"tsconfig.json",
+		"angular.json",
+		"next.config.js",
+		"webpack.config.js",
+		".eslintrc.json",
+		"composer.json",
+		"manifest.json",
+		"app.json",
+		"project.json",
+	}
+	
+	fileName := filepath.Base(filePath)
+	
+	for _, jsonFile := range jsonFiles {
+		if fileName == jsonFile {
+			return true
+		}
+	}
+	
+	// Verificar pela extensão
+	ext := filepath.Ext(filePath)
+	return ext == ".json" || ext == ".jsonc"
+}
+
+// PreserveJSONFormat preserva o formato original de arquivos JSON, removendo apenas escapes desnecessários
+func PreserveJSONFormat(content string) string {
+	// Remover escapes desnecessários que podem afetar o formato JSON
+	unescaped := content
+	
+	// Remover escapes de caracteres especiais que não devem ser escapados em JSON
+	unescaped = strings.ReplaceAll(unescaped, "\\@", "@")
+	unescaped = strings.ReplaceAll(unescaped, "\\\"", "\"")
+	
+	// Preservar quebras de linha reais, mas remover escapes de quebra de linha
+	unescaped = strings.ReplaceAll(unescaped, "\\n", "\n")
+	unescaped = strings.ReplaceAll(unescaped, "\\r", "\r")
+	unescaped = strings.ReplaceAll(unescaped, "\\t", "\t")
+	
+	return unescaped
+}

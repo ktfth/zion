@@ -116,8 +116,14 @@ func ExtractAndCreateTomlProject(projectName string, jsonStr string) error {
 		// Extrair o conteúdo
 		content := jsonStr[contentStart:contentEnd]
 		
-		// Processar caracteres escapados
-		content = ProcessEscapedChars(content)
+		// Processar caracteres escapados apenas para arquivos que não são JSON
+		if !isJSONFile(fileName) {
+			content = ProcessEscapedChars(content)
+		} else {
+			// Para arquivos JSON, apenas remover escapes desnecessários
+			content = PreserveJSONFormat(content)
+			fmt.Printf("Preservado formato original do arquivo JSON: %s\n", fileName)
+		}
 		
 		// Determinar onde começa o próximo arquivo ou o final da seção "files"
 		var nextPos int

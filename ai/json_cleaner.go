@@ -65,6 +65,28 @@ func FixNpmPackagesInJSON(jsonStr string) string {
 		jsonStr = strings.Replace(jsonStr, packageJsonContent, fixed, 1)
 	}
 	
+	// Verificar se há arquivos JSON no conteúdo e preservar seu formato original
+	jsonFileRegex := regexp.MustCompile(`"(package\.json|tsconfig\.json|angular\.json|next\.config\.js|webpack\.config\.js)":\s*"(.+?)"`) 
+	jsonFileMatches := jsonFileRegex.FindAllStringSubmatch(jsonStr, -1)
+	
+	for _, match := range jsonFileMatches {
+		if len(match) > 2 {
+			fileName := match[1]      // package.json, tsconfig.json, etc.
+			fileContent := match[2]  // Conteúdo do arquivo
+			
+			// Desescapar o conteúdo para preservar caracteres especiais como @
+			unescaped := fileContent
+			unescaped = strings.ReplaceAll(unescaped, "\\@", "@")
+			unescaped = strings.ReplaceAll(unescaped, "\\n", "\n")
+			unescaped = strings.ReplaceAll(unescaped, "\\\"", "\"")
+			
+			// Substituir o conteúdo original pelo desescapado
+			jsonStr = strings.Replace(jsonStr, match[0], fmt.Sprintf("\"%s\":\"%s\"", fileName, unescaped), 1)
+			
+			fmt.Printf("Preservado formato original do arquivo %s\n", fileName)
+		}
+	}
+	
 	// Procurar por padrões específicos que causam problemas
 	// Problema com o @types/express e similares
 	// Busca por padrões como: "@types/express": "^4.17.17",
