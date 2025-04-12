@@ -1,0 +1,43 @@
+# Dependências
+node_modules/
+.pnp/
+.pnp.js
+
+# Build e distribuição
+dist/
+build/
+*.tsbuildinfo
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage e testes
+coverage/
+.nyc_output/
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Cache
+.npm/
+.eslintcache
+.prettiercache
+
+# Arquivos temporários
+*.tmp
+*.temp
+temp/ 

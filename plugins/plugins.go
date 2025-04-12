@@ -3,8 +3,9 @@ package plugins
 import (
 	"fmt"
 	"os"
-	"runtime"
-
+	"path/filepath"
+	"plugin"
+	"strings"
 	"zion/config"
 )
 
@@ -67,29 +68,73 @@ func ExecutePlugins() {
 	}
 }
 
-// LoadPlugins carrega os plugins
-func LoadPlugins(cfg *config.Config) error {
-	// No Windows, os plugins são carregados estaticamente
-	if runtime.GOOS == "windows" {
-		fmt.Println("Plugins dinâmicos não são suportados no Windows. Usando plugins estáticos.")
-		// Os plugins estáticos já são carregados automaticamente via init()
-		return nil
+// LoadPlugins carrega todos os plugins do diretório de plugins
+func LoadPlugins() error {
+	cfg := config.LoadConfig()
+	if cfg.PluginsDir == "" {
+		return fmt.Errorf("diretório de plugins não configurado")
 	}
 
-	// Em sistemas Unix, carregamos plugins dinâmicos do diretório de plugins
-	fmt.Printf("Carregando plugins do diretório: %s\n", cfg.PluginsDir)
+	// Normaliza o caminho do diretório de plugins
+	pluginsDir := filepath.Clean(cfg.PluginsDir)
 
-	// Verificar se o diretório de plugins existe
-	if _, err := os.Stat(cfg.PluginsDir); os.IsNotExist(err) {
-		fmt.Println("Diretório de plugins não encontrado, pulando carregamento de plugins")
-		return nil
+	// Verifica se o diretório existe
+	if _, err := os.Stat(pluginsDir); os.IsNotExist(err) {
+		return fmt.Errorf("diretório de plugins não encontrado: %s", pluginsDir)
 	}
 
-	// Em sistemas Unix, implementaríamos o carregamento dinâmico de plugins
-	// Mas como estamos focando na solução para Windows, isso fica como um TODO
-	fmt.Println("Carregamento dinâmico de plugins ainda não implementado para sistemas Unix")
+	// Lista todos os arquivos no diretório
+	entries, err := os.ReadDir(pluginsDir)
+	if err != nil {
+		return fmt.Errorf("erro ao ler diretório de plugins: %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !isPluginFile(entry.Name()) {
+			continue
+		}
+
+		pluginPath := filepath.Join(pluginsDir, entry.Name())
+		p, err := loadPlugin(pluginPath)
+		if err != nil {
+			fmt.Printf("⚠️  Aviso: erro ao carregar plugin %s: %v\n", entry.Name(), err)
+			continue
+		}
+
+		registeredPlugins[p.Name()] = p
+		fmt.Printf("✅ Plugin carregado: %s\n", p.Name())
+	}
 
 	return nil
+}
+
+// isPluginFile verifica se o arquivo é um plugin válido
+func isPluginFile(filename string) bool {
+	ext := filepath.Ext(filename)
+	return strings.EqualFold(ext, ".so") || strings.EqualFold(ext, ".dll")
+}
+
+// loadPlugin carrega um único plugin
+func loadPlugin(path string) (Plugin, error) {
+	// Abre o arquivo do plugin
+	plug, err := plugin.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao abrir plugin: %v", err)
+	}
+
+	// Procura pelo símbolo "Plugin"
+	symPlugin, err := plug.Lookup("Plugin")
+	if err != nil {
+		return nil, fmt.Errorf("símbolo 'Plugin' não encontrado: %v", err)
+	}
+
+	// Converte para a interface Plugin
+	p, ok := symPlugin.(Plugin)
+	if !ok {
+		return nil, fmt.Errorf("símbolo 'Plugin' não implementa a interface Plugin")
+	}
+
+	return p, nil
 }
 
 // ExecuteHook executa todos os plugins que implementam um determinado hook
@@ -98,7 +143,7 @@ func ExecuteHook(hook ScaffoldHook, ctx *ScaffoldContext) *ScaffoldContext {
 		hooks := plugin.GetHooks()
 		if hookFunc, exists := hooks[hook]; exists {
 			fmt.Printf("Executando hook %s do plugin %s\n", hook, name)
-			
+
 			switch hook {
 			case BeforeGeneration:
 				if beforeFunc, ok := hookFunc.(func(*ScaffoldContext) error); ok {
@@ -122,4 +167,3 @@ func ExecuteHook(hook ScaffoldHook, ctx *ScaffoldContext) *ScaffoldContext {
 
 	return ctx
 }
-
