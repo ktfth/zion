@@ -35,7 +35,7 @@ zion setup
 
 ```bash
 # Clone o repositório
-git clone https://github.com/ktfh/zion.git
+git clone https://github.com/ktfth/zion.git
 
 # Entre no diretório
 cd zion
