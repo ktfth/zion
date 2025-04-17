@@ -1,4 +1,4 @@
-module zion
+module github.com/ktfth/zion
 
 go 1.20
 
