@@ -1,6 +1,6 @@
 package main
 
-import "zion/cmd"
+import "github.com/ktfth/zion/cmd"
 
 func main() {
 	cmd.Execute()

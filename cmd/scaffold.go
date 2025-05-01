@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"zion/ai"
-	"zion/plugins"
+	"github.com/ktfth/zion/ai"
+	"github.com/ktfth/zion/plugins"
 
 	"github.com/spf13/cobra"
 )

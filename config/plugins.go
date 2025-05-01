@@ -24,7 +24,7 @@ func GetPluginsDir() string {
 		return filepath.Join(homeDir, "AppData", "Local", "Zion", "plugins")
 	}
 
-	// Em sistemas Unix, use ~/.zion/plugins
+	// Em sistemas Unix, use ~/.github.com/ktfth/zion/plugins
 	return filepath.Join(homeDir, ".zion", "plugins")
 }
 

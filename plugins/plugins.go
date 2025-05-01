@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"plugin"
 	"strings"
-	"zion/config"
+	"github.com/ktfth/zion/config"
 )
 
 // ScaffoldHook define os pontos de extensão para plugins durante a geração de scaffold

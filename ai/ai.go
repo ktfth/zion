@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"zion/config"
-	"zion/plugins"
+	"github.com/ktfth/zion/config"
+	"github.com/ktfth/zion/plugins"
 )
 
 type GeminiRequest struct {

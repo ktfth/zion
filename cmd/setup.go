@@ -7,7 +7,7 @@ import (
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"zion/config"
+	"github.com/ktfth/zion/config"
 )
 
 var setupCmd = &cobra.Command{
@@ -196,10 +196,10 @@ go build -buildmode=plugin -o hello_world.so hello_world.go
 
 ## Instalação
 
-Copie o arquivo hello_world.so para o diretório ~/.zion/plugins/:
+Copie o arquivo hello_world.so para o diretório ~/.github.com/ktfth/zion/plugins/:
 
 ` + "```bash" + `
-cp hello_world.so ~/.zion/plugins/
+cp hello_world.so ~/.github.com/ktfth/zion/plugins/
 ` + "```" + `
 
 ## Uso

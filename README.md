@@ -35,7 +35,7 @@ zion setup
 
 ```bash
 # Clone o repositório
-git clone https://github.com/ktfth/zion.git
+git clone https://github.com/ktfth/zion/.git
 
 # Entre no diretório
 cd zion
@@ -102,7 +102,7 @@ O Zion possui um sistema de plugins robusto que permite estender suas funcionali
 ### Diretório de Plugins
 
 - Windows: `%APPDATA%\Local\Zion\plugins`
-- Linux/macOS: `~/.zion/plugins`
+- Linux/macOS: `~/.github.com/ktfth/zion/plugins`
 
 ## 🤝 Contribuindo
 

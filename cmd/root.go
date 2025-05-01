@@ -5,8 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"zion/config"
-	"zion/plugins"
+	"github.com/ktfth/zion/plugins"
 )
 
 // rootCmd é o comando principal da CLI.
@@ -20,11 +19,8 @@ e reforçando boas práticas de código. Além disso, possui um sistema de plugi
 
 // Execute inicia a CLI.
 func Execute() {
-	// Carregar a configuração
-	cfg := config.LoadConfig()
-	
 	// Carregar plugins
-	if err := plugins.LoadPlugins(cfg); err != nil {
+	if err := plugins.LoadPlugins(); err != nil {
 		fmt.Printf("Erro ao carregar plugins: %v\n", err)
 	}
 	
