@@ -25,7 +25,7 @@ Você tem duas opções para instalar o Zion:
 #### 1. Via go install (Recomendado)
 
 ```bash
-go install github.com/ktfh/zion@latest
+go install github.com/ktfth/zion@latest
 
 # Configure o ambiente (cria diretórios necessários e plugin de exemplo)
 zion setup
