@@ -2,6 +2,8 @@
 
 Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de projetos em qualquer linguagem de programação, com foco em boas práticas e modularidade.
 
+[![See Zion in Action!](cover.png)](https://youtu.be/IHp77Qb76Ho)
+
 ## ✨ Características
 
 - 🤖 **Integração com IA** - Utiliza Gemini AI para gerar estruturas inteligentes
