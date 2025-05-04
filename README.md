@@ -2,7 +2,7 @@
 
 Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de projetos em qualquer linguagem de programação, com foco em boas práticas e modularidade.
 
-[![See Zion in Action!](cover.png)](https://youtu.be/IHp77Qb76Ho)
+[![Veja em ação!](cover.png)](https://youtu.be/IHp77Qb76Ho)
 
 ## ✨ Características
 
@@ -59,6 +59,42 @@ go build
    
    # Linux/macOS
    export GEMINI_API_KEY="sua-chave-aqui"
+   ```
+
+Para uso com GPT, você precisa de uma chave de API do OpenAI.
+
+1. Obtenha uma chave de API do OpenAI em: https://platform.openai.com/account/api-keys
+2. Configure a chave de API:
+   ```bash
+   # Windows PowerShell
+   $env:OPENAI_API_KEY="sua-chave-aqui"
+   
+   # Linux/macOS
+   export OPENAI_API_KEY="sua-chave-aqui"
+   ```
+3. Configure o modelo padrão:
+   ```bash
+   # Windows PowerShell
+   $env:OPENAI_MODEL="gpt-4o"
+   
+   # Linux/macOS
+   export OPENAI_MODEL="gpt-4o"
+   ```
+4. Configure o número máximo de tokens padrão:
+   ```bash
+   # Windows PowerShell
+   $env:OPENAI_MAX_TOKENS="2048"
+   
+   # Linux/macOS
+   export OPENAI_MAX_TOKENS="2048"
+   ```
+5. Configure o zion:
+   ```bash
+   # Windows PowerShell
+   $env:ZION_AI_PROVIDER="gpt"
+   
+   # Linux/macOS
+   export ZION_AI_PROVIDER="gpt"
    ```
 
 ## 📚 Uso
