@@ -39,6 +39,9 @@ func CleanJSONString(jsonStr string) string {
 	// Última tentativa: substituir aspas simples por aspas duplas em valores
 	cleaned = FixQuotesInJSON(cleaned)
 
+	// Remover prefixo pkg: dos nomes de pacotes
+	cleaned = RemovePkgPrefix(cleaned)
+
 	return cleaned
 }
 
@@ -46,81 +49,92 @@ func CleanJSONString(jsonStr string) string {
 func FixNpmPackagesInJSON(jsonStr string) string {
 	// Problema comum: aspas em nomes de pacotes npm que começam com @
 	// Exemplo: "@types/express": "^4.17.17"
-	
+
 	// Primeiro, vamos identificar o bloco de package.json
-	packageJsonRegex := regexp.MustCompile(`"package\.json":\s*"\{([^}]+)\}"`) 
+	packageJsonRegex := regexp.MustCompile(`"package\.json":\s*"\{([^}]+)\}"`)
 	matches := packageJsonRegex.FindStringSubmatch(jsonStr)
-	
+
 	if len(matches) > 1 {
 		// Encontramos o bloco de package.json
 		packageJsonContent := matches[1]
-		
+
 		// Corrigir aspas escapadas dentro do package.json
 		fixed := packageJsonContent
-		
+
 		// Substituir \" por "
 		fixed = strings.ReplaceAll(fixed, "\\\"", "\"")
-		
+
 		// Substituir o conteúdo original pelo corrigido
 		jsonStr = strings.Replace(jsonStr, packageJsonContent, fixed, 1)
 	}
-	
+
 	// Verificar se há arquivos JSON no conteúdo e preservar seu formato original
-	jsonFileRegex := regexp.MustCompile(`"(package\.json|tsconfig\.json|angular\.json|next\.config\.js|webpack\.config\.js)":\s*"(.+?)"`) 
+	jsonFileRegex := regexp.MustCompile(`"(package\.json|tsconfig\.json|angular\.json|next\.config\.js|webpack\.config\.js)":\s*"(.+?)"`)
 	jsonFileMatches := jsonFileRegex.FindAllStringSubmatch(jsonStr, -1)
-	
+
 	for _, match := range jsonFileMatches {
 		if len(match) > 2 {
-			fileName := match[1]      // package.json, tsconfig.json, etc.
-			fileContent := match[2]  // Conteúdo do arquivo
-			
+			fileName := match[1]    // package.json, tsconfig.json, etc.
+			fileContent := match[2] // Conteúdo do arquivo
+
 			// Desescapar o conteúdo para preservar caracteres especiais como @
 			unescaped := fileContent
 			unescaped = strings.ReplaceAll(unescaped, "\\@", "@")
 			unescaped = strings.ReplaceAll(unescaped, "\\n", "\n")
 			unescaped = strings.ReplaceAll(unescaped, "\\\"", "\"")
-			
-			// Substituir o conteúdo original pelo desescapado
+
+			// Remover prefixo pkg: dos nomes de pacotes
+			unescaped = RemovePkgPrefix(unescaped)
+
+			// Substituir o conteúdo original pelo processado
 			jsonStr = strings.Replace(jsonStr, match[0], fmt.Sprintf("\"%s\":\"%s\"", fileName, unescaped), 1)
-			
+
 			fmt.Printf("Preservado formato original do arquivo %s\n", fileName)
 		}
 	}
-	
+
 	// Procurar por padrões específicos que causam problemas
 	// Problema com o @types/express e similares
 	// Busca por padrões como: "@types/express": "^4.17.17",
-	problemRegex := regexp.MustCompile(`"(@[^"]+)":\s*"([^"]+)",\s*\n\s*"([^"]+)"`) 
+	problemRegex := regexp.MustCompile(`"(@[^"]+)":\s*"([^"]+)",\s*\n\s*"([^"]+)"`)
 	problemMatches := problemRegex.FindAllStringSubmatch(jsonStr, -1)
-	
+
 	for _, match := range problemMatches {
 		if len(match) > 3 {
 			original := match[0]
-			packageName := match[1]  // @types/express
-			version := match[2]      // ^4.17.17
-			nextPackage := match[3]  // typescript ou outro pacote
-			
+			packageName := match[1] // @types/express
+			version := match[2]     // ^4.17.17
+			nextPackage := match[3] // typescript ou outro pacote
+
 			// Criar a versão corrigida
 			corrected := fmt.Sprintf(`"%s": "%s",
     "%s"`, packageName, version, nextPackage)
-			
+
 			// Substituir na string JSON
 			jsonStr = strings.Replace(jsonStr, original, corrected, 1)
 		}
 	}
-	
+
 	return jsonStr
+}
+
+// RemovePkgPrefix remove o prefixo "pkg:" dos nomes de pacotes em package.json
+func RemovePkgPrefix(content string) string {
+	// Regex para encontrar pacotes com prefixo pkg:
+	pkgRegex := regexp.MustCompile(`"pkg:([^"]+)":\s*"([^"]+)"`)
+	// Remove o prefixo pkg: mantendo o restante do nome do pacote e sua versão
+	return pkgRegex.ReplaceAllString(content, `"$1": "$2"`)
 }
 
 // FixQuotesInJSON corrige problemas com aspas em JSON
 func FixQuotesInJSON(jsonStr string) string {
 	// Problema comum: aspas simples em vez de aspas duplas em valores
 	// Exemplo: "dependencies": { 'express': '^4.18.2' }
-	
+
 	// Substituir aspas simples por aspas duplas apenas em valores
 	// Isso é uma solução simplificada e pode não funcionar em todos os casos
 	valueRegex := regexp.MustCompile(`:\s*'([^']*)'`)
 	fixed := valueRegex.ReplaceAllString(jsonStr, `: "$1"`)
-	
+
 	return fixed
 }
