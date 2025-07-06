@@ -335,6 +335,73 @@ func processScaffoldResponse(response string) (string, error) {
 	if strings.HasPrefix(response, "```json\n") && strings.HasSuffix(response, "\n```") {
 		response = strings.TrimPrefix(response, "```json\n")
 		response = strings.TrimSuffix(response, "\n```")
+	} else if strings.HasPrefix(response, "```json") && strings.HasSuffix(response, "```") {
+		response = strings.TrimPrefix(response, "```json")
+		response = strings.TrimSuffix(response, "```")
+	} else if strings.HasPrefix(response, "```") && strings.HasSuffix(response, "```") {
+		response = strings.TrimPrefix(response, "```")
+		response = strings.TrimSuffix(response, "```")
+	}
+
+	// Limpar whitespaces extras
+	response = strings.TrimSpace(response)
+
+	// Tentar extrair JSON se há texto antes/depois
+	jsonStart := -1
+	jsonEnd := -1
+
+	// Procurar pelo início do JSON (procurar por { que não esteja dentro de uma string)
+	for i, char := range response {
+		if char == '{' {
+			jsonStart = i
+			break
+		}
+	}
+
+	// Procurar pelo fim do JSON (procurar pelo } balanceado)
+	if jsonStart >= 0 {
+		braceCount := 0
+		inString := false
+		escaped := false
+
+		for i := jsonStart; i < len(response); i++ {
+			char := response[i]
+
+			if escaped {
+				escaped = false
+				continue
+			}
+
+			if char == '\\' {
+				escaped = true
+				continue
+			}
+
+			if char == '"' {
+				inString = !inString
+				continue
+			}
+
+			if !inString {
+				if char == '{' {
+					braceCount++
+				} else if char == '}' {
+					braceCount--
+					if braceCount == 0 {
+						jsonEnd = i
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Se encontrou início e fim válidos, extrair o JSON
+	if jsonStart >= 0 && jsonEnd >= 0 {
+		response = response[jsonStart : jsonEnd+1]
+	} else if jsonStart >= 0 {
+		// Se só encontrou o início, tentar do início até o fim
+		response = response[jsonStart:]
 	}
 
 	// Primeiro, vamos tentar fazer parse do JSON base

@@ -9,6 +9,7 @@ type Config struct {
 	GeminiAPIKey     string
 	OpenAIAPIKey     string
 	OpenRouterAPIKey string
+	ClaudeAPIKey     string
 	AIProvider       string
 	HomeDir          string
 	PluginsDir       string
@@ -49,6 +50,9 @@ func LoadConfig() *Config {
 		} else if os.Getenv("OPENROUTER_API_KEY") != "" {
 			// Se OPENROUTER_API_KEY estiver definida, usa OpenRouter como padrão
 			aiProvider = "openrouter"
+		} else if os.Getenv("CLAUDE_API_KEY") != "" {
+			// Se CLAUDE_API_KEY estiver definida, usa Claude como padrão
+			aiProvider = "claude"
 		} else {
 			// Se nenhuma chave estiver definida, usa Gemini como padrão
 			aiProvider = "gemini"
@@ -59,6 +63,7 @@ func LoadConfig() *Config {
 		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
 		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
 		OpenRouterAPIKey: os.Getenv("OPENROUTER_API_KEY"),
+		ClaudeAPIKey:     os.Getenv("CLAUDE_API_KEY"),
 		AIProvider:       aiProvider,
 		HomeDir:          zionDir,
 		PluginsDir:       pluginsDir,
@@ -82,6 +87,14 @@ func (c *Config) GetAIConfig() map[string]string {
 			"max_tokens":  os.Getenv("OPENROUTER_MAX_TOKENS"),  // opcional
 			"temperature": os.Getenv("OPENROUTER_TEMPERATURE"), // opcional
 			"base_url":    os.Getenv("OPENROUTER_BASE_URL"),    // opcional
+		}
+	case "claude":
+		return map[string]string{
+			"api_key":     c.ClaudeAPIKey,
+			"model":       os.Getenv("CLAUDE_MODEL"),       // opcional
+			"max_tokens":  os.Getenv("CLAUDE_MAX_TOKENS"),  // opcional
+			"temperature": os.Getenv("CLAUDE_TEMPERATURE"), // opcional
+			"base_url":    os.Getenv("CLAUDE_BASE_URL"),    // opcional
 		}
 	default: // gemini
 		return map[string]string{

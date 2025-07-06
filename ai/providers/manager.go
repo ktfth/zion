@@ -26,6 +26,7 @@ func NewProviderManager() *ProviderManager {
 	manager.RegisterFactory("gemini", NewGeminiProvider)
 	manager.RegisterFactory("gpt", NewGPTProvider)
 	manager.RegisterFactory("openrouter", NewOpenRouterProvider)
+	manager.RegisterFactory("claude", NewClaudeProvider)
 
 	return manager
 }
@@ -75,4 +76,5 @@ func init() {
 	DefaultManager.RegisterFactory("gemini", NewGeminiProvider)
 	DefaultManager.RegisterFactory("gpt", NewGPTProvider)
 	DefaultManager.RegisterFactory("openrouter", NewOpenRouterProvider)
+	DefaultManager.RegisterFactory("claude", NewClaudeProvider)
 }

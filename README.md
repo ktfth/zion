@@ -6,7 +6,7 @@ Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de pr
 
 ## ✨ Características
 
-- 🤖 **Integração com IA** - Utiliza Gemini, GPT ou OpenRouter para gerar estruturas inteligentes
+- 🤖 **Integração com IA** - Utiliza Gemini, GPT, OpenRouter ou Claude para gerar estruturas inteligentes
 - 🔌 **Sistema de Plugins** - Arquitetura extensível através de plugins
 - 🌍 **Multi-linguagem** - Suporte a qualquer linguagem de programação
 - 📦 **Scaffolding Inteligente** - Estruturas otimizadas para cada tipo de projeto
@@ -22,6 +22,7 @@ Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de pr
   - Gemini (gratuita)
   - OpenAI GPT (paga)
   - OpenRouter (gratuita e paga)
+  - Claude (paga, via OpenRouter)
 
 ### Instalação
 
@@ -54,7 +55,7 @@ go build
 
 ### Configuração
 
-O Zion suporta três provedores de IA: **Gemini**, **GPT** e **OpenRouter**. Você pode configurar qualquer um deles:
+O Zion suporta quatro provedores de IA: **Gemini**, **GPT**, **OpenRouter** e **Claude**. Você pode configurar qualquer um deles:
 
 #### 🤖 Gemini (Google) - Gratuito
 
@@ -174,6 +175,69 @@ OpenRouter oferece acesso a múltiplos modelos de IA, incluindo opções gratuit
    export ZION_AI_PROVIDER="openrouter"
    ```
 
+#### 🧠 Claude (Anthropic) - Pago
+
+O Claude pode ser usado de duas formas: através do OpenRouter ou como provider dedicado.
+
+##### Opção 1: Claude via OpenRouter (Recomendado)
+
+```bash
+# Windows PowerShell
+$env:OPENROUTER_API_KEY="sk-or-v1-sua-chave-aqui"
+$env:ZION_AI_PROVIDER="openrouter"
+$env:OPENROUTER_MODEL="anthropic/claude-3-haiku"
+
+# Linux/macOS
+export OPENROUTER_API_KEY="sk-or-v1-sua-chave-aqui"
+export ZION_AI_PROVIDER="openrouter"
+export OPENROUTER_MODEL="anthropic/claude-3-haiku"
+```
+
+##### Opção 2: Claude como Provider Dedicado
+
+1. Obtenha uma chave de API do OpenRouter em: https://openrouter.ai/keys
+2. Configure a chave de API:
+   ```bash
+   # Windows PowerShell
+   $env:CLAUDE_API_KEY="sk-or-v1-sua-chave-aqui"
+   
+   # Linux/macOS
+   export CLAUDE_API_KEY="sk-or-v1-sua-chave-aqui"
+   ```
+3. Configure o modelo Claude (opcional):
+   ```bash
+   # Windows PowerShell
+   $env:CLAUDE_MODEL="anthropic/claude-3-haiku"
+   
+   # Linux/macOS
+   export CLAUDE_MODEL="anthropic/claude-3-haiku"
+   ```
+4. Configure parâmetros adicionais (opcional):
+   ```bash
+   # Windows PowerShell
+   $env:CLAUDE_MAX_TOKENS="4096"
+   $env:CLAUDE_TEMPERATURE="0.7"
+   
+   # Linux/macOS
+   export CLAUDE_MAX_TOKENS="4096"
+   export CLAUDE_TEMPERATURE="0.7"
+   ```
+5. Configure como provider padrão:
+   ```bash
+   # Windows PowerShell
+   $env:ZION_AI_PROVIDER="claude"
+   
+   # Linux/macOS
+   export ZION_AI_PROVIDER="claude"
+   ```
+
+##### 🤖 Modelos Claude Disponíveis
+
+- `anthropic/claude-3-haiku` - Rápido e econômico
+- `anthropic/claude-3-sonnet` - Equilibrado (velocidade/qualidade)
+- `anthropic/claude-3-opus` - Máxima qualidade
+- `anthropic/claude-3-5-sonnet` - Última geração
+
 ##### 🎯 Modelos Populares no OpenRouter
 
 **Gratuitos:**
@@ -204,11 +268,13 @@ zion provider current
 zion provider config gemini      # Para Gemini
 zion provider config gpt         # Para GPT
 zion provider config openrouter  # Para OpenRouter
+zion provider config claude      # Para Claude
 
 # Testar a conexão com um provider (após configurar)
 zion provider test gemini
 zion provider test gpt
 zion provider test openrouter
+zion provider test claude
 ```
 
 ### Gerar um novo projeto
@@ -241,6 +307,14 @@ zion scaffold -l go -n api-server -d "API REST em Go" \
 # Usar Gemini
 zion scaffold -l rust -n cli-tool -d "Ferramenta CLI em Rust" \
   -p gemini -k "sua-chave-gemini"
+
+# Usar Claude via OpenRouter
+zion scaffold -l python -n ml-project -d "Projeto de Machine Learning" \
+  -p openrouter -k "sk-or-v1-sua-chave-aqui" -m "anthropic/claude-3-haiku"
+
+# Usar Claude como provider dedicado
+zion scaffold -l typescript -n web-app -d "Aplicação web moderna" \
+  -p claude -k "sk-or-v1-sua-chave-aqui" -m "anthropic/claude-3-sonnet"
 ```
 
 ### Comandos Disponíveis
@@ -255,7 +329,7 @@ zion scaffold -l rust -n cli-tool -d "Ferramenta CLI em Rust" \
 - `-l, --language` - Linguagem do projeto (obrigatório)
 - `-n, --name` - Nome do projeto (obrigatório)
 - `-d, --description` - Descrição do projeto (opcional)
-- `-p, --provider` - Provider de IA (gemini, gpt, openrouter)
+- `-p, --provider` - Provider de IA (gemini, gpt, openrouter, claude)
 - `-k, --api-key` - API key específica para o provider
 - `-m, --model` - Modelo específico do provider
 
@@ -266,15 +340,15 @@ zion scaffold -l rust -n cli-tool -d "Ferramenta CLI em Rust" \
 
 ## 📊 Comparação de Provedores
 
-| Característica | Gemini | GPT (OpenAI) | OpenRouter |
-|---------------|---------|--------------|------------|
-| **Custo** | Gratuito | Pago | Gratuito + Pago |
-| **Qualidade** | Boa | Excelente | Varia por modelo |
-| **Velocidade** | Rápida | Rápida | Varia por modelo |
-| **Modelos** | Gemini 2.0 Flash | GPT-3.5/4 | 50+ modelos |
-| **Limite gratuito** | Generoso | Não | Limitado |
-| **Configuração** | Simples | Simples | Flexível |
-| **Uso recomendado** | Pessoal/Aprendizado | Profissional | Experimental/Flexível |
+| Característica | Gemini | GPT (OpenAI) | OpenRouter | Claude |
+|---------------|---------|--------------|------------|--------|
+| **Custo** | Gratuito | Pago | Gratuito + Pago | Pago |
+| **Qualidade** | Boa | Excelente | Varia por modelo | Excelente |
+| **Velocidade** | Rápida | Rápida | Varia por modelo | Rápida |
+| **Modelos** | Gemini 2.0 Flash | GPT-3.5/4 | 50+ modelos | Claude 3 família |
+| **Limite gratuito** | Generoso | Não | Limitado | Não |
+| **Configuração** | Simples | Simples | Flexível | Simples |
+| **Uso recomendado** | Pessoal/Aprendizado | Profissional | Experimental/Flexível | Profissional/Análise |
 
 ### Quando usar cada provider
 
@@ -295,6 +369,12 @@ zion scaffold -l rust -n cli-tool -d "Ferramenta CLI em Rust" \
 - ✅ Acesso a modelos de ponta
 - ✅ Flexibilidade de escolha
 - ✅ Opções gratuitas e pagas
+
+#### 🧠 Claude
+- ✅ Análise profunda de código
+- ✅ Respostas detalhadas e estruturadas
+- ✅ Excelente para projetos complexos
+- ✅ Forte capacidade de raciocínio
 
 ## 🚀 Exemplos Práticos
 
@@ -358,6 +438,70 @@ cd fullstack-app
 ls -la
 ```
 
+### Exemplo 5: Usando Claude para Projetos Complexos
+
+```bash
+# Configurar Claude como provider dedicado
+export CLAUDE_API_KEY="sk-or-v1-sua-chave-aqui"
+export ZION_AI_PROVIDER="claude"
+export CLAUDE_MODEL="anthropic/claude-3-sonnet"
+
+# Gerar um projeto complexo
+zion scaffold -l typescript -n enterprise-app -d "Aplicação enterprise completa com microserviços, autenticação avançada, monitoramento, testes automatizados e CI/CD"
+
+# Ou usar Claude via OpenRouter
+zion scaffold -l python -n ai-project -d "Sistema de IA com processamento de linguagem natural, análise de sentimentos e API RESTful" \
+  -p openrouter -k "sk-or-v1-sua-chave-aqui" -m "anthropic/claude-3-haiku"
+```
+
+### Exemplo 6: Comparando Todos os Provedores
+
+```bash
+# Gerar o mesmo projeto com todos os provedores disponíveis
+PROJECT_DESC="API GraphQL com autenticação, cache Redis e banco PostgreSQL"
+
+# Gemini (gratuito)
+zion scaffold -l go -n api-gemini -d "$PROJECT_DESC" -p gemini -k "sua-chave-gemini"
+
+# GPT (pago)
+zion scaffold -l go -n api-gpt -d "$PROJECT_DESC" -p gpt -k "sua-chave-openai"
+
+# OpenRouter (modelo gratuito)
+zion scaffold -l go -n api-openrouter-free -d "$PROJECT_DESC" \
+  -p openrouter -k "sk-or-v1-sua-chave" -m "meta-llama/llama-3.2-3b-instruct:free"
+
+# Claude via OpenRouter (pago)
+zion scaffold -l go -n api-claude-openrouter -d "$PROJECT_DESC" \
+  -p openrouter -k "sk-or-v1-sua-chave" -m "anthropic/claude-3-haiku"
+
+# Claude dedicado (pago)
+zion scaffold -l go -n api-claude -d "$PROJECT_DESC" -p claude -k "sk-or-v1-sua-chave"
+```
+
+```bash
+# 1. Verificar provedores disponíveis
+zion provider list
+
+# 2. Configurar OpenRouter
+zion provider config openrouter
+
+# 3. Testar conexão
+zion provider test openrouter
+
+# 4. Gerar projeto com configurações específicas
+zion scaffold \
+  -l javascript \
+  -n fullstack-app \
+  -d "Aplicação fullstack com Next.js, API REST e banco de dados PostgreSQL" \
+  -p openrouter \
+  -k "sk-or-v1-sua-chave-aqui" \
+  -m "anthropic/claude-3-haiku"
+
+# 5. Verificar o projeto gerado
+cd fullstack-app
+ls -la
+```
+
 ## 💡 Dicas e Recomendações
 
 ### Escolha do Provider
@@ -380,6 +524,11 @@ ls -la
 #### Para Projetos Complexos:
 - `openai/gpt-4` (Máxima qualidade)
 - `anthropic/claude-3-sonnet` (OpenRouter - Pago)
+- `anthropic/claude-3-opus` (OpenRouter - Máxima qualidade Claude)
+
+#### Para Análise de Código e Documentação:
+- `anthropic/claude-3-haiku` (Rápido e econômico)
+- `anthropic/claude-3-5-sonnet` (Última geração Claude)
 
 ### Configuração de Variáveis de Ambiente
 
@@ -393,6 +542,11 @@ export ZION_AI_PROVIDER="openrouter"
 export OPENROUTER_MODEL="anthropic/claude-3-haiku"
 export OPENROUTER_MAX_TOKENS="4096"
 export OPENROUTER_TEMPERATURE="0.7"
+
+# Alternativa: usar Claude como provider dedicado
+# export CLAUDE_API_KEY="sk-or-v1-sua-chave-aqui"
+# export ZION_AI_PROVIDER="claude"
+# export CLAUDE_MODEL="anthropic/claude-3-sonnet"
 ```
 
 ```powershell
@@ -402,6 +556,11 @@ $env:ZION_AI_PROVIDER="openrouter"
 $env:OPENROUTER_MODEL="anthropic/claude-3-haiku"
 $env:OPENROUTER_MAX_TOKENS="4096"
 $env:OPENROUTER_TEMPERATURE="0.7"
+
+# Alternativa: usar Claude como provider dedicado
+# $env:CLAUDE_API_KEY="sk-or-v1-sua-chave-aqui"
+# $env:ZION_AI_PROVIDER="claude"
+# $env:CLAUDE_MODEL="anthropic/claude-3-sonnet"
 ```
 
 ## 🔌 Sistema de Plugins
@@ -458,7 +617,7 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
    - Modelos gratuitos têm limitações de uso
    - Verifique os preços dos modelos pagos antes de usar
 5. **Seleção automática**: O Zion seleciona automaticamente o provider baseado nas chaves de API disponíveis:
-   - Prioridade: GEMINI_API_KEY → OPENAI_API_KEY → OPENROUTER_API_KEY
+   - Prioridade: GEMINI_API_KEY → OPENAI_API_KEY → OPENROUTER_API_KEY → CLAUDE_API_KEY
    - Use `ZION_AI_PROVIDER` para forçar um provider específico
 
 ## 🔧 Troubleshooting
@@ -488,6 +647,7 @@ zion scaffold -l go -n teste -p openrouter -k "sua-chave-aqui"
 - Verifique se a API key está correta
 - Confirme se tem saldo/créditos (para modelos pagos)
 - Teste com um modelo gratuito primeiro
+- Para Claude: verifique se está usando a chave do OpenRouter
 
 #### 4. "API retornou status 429"
 - Aguarde um pouco e tente novamente (rate limiting)
@@ -508,6 +668,7 @@ zion provider current
 
 # Testar conexão
 zion provider test openrouter
+zion provider test claude
 
 # Verificar todos os provedores
 zion provider list
@@ -519,6 +680,8 @@ zion provider list
 - [Uso do OpenRouter na CLI](docs/openrouter_cli.md) - Exemplos práticos de uso
 - [Resumo dos Providers](docs/providers_summary.md) - Comparação técnica entre providers
 - [Implementação OpenRouter](docs/openrouter_implementation.md) - Detalhes técnicos da implementação
+- [Claude Provider - Documentação Técnica](docs/claude_provider.md) - Documentação técnica completa do Claude
+- [Guia de Uso - Claude Provider](docs/claude_usage_guide.md) - Guia prático de uso do Claude
 
 ## 🔗 Links Úteis
 

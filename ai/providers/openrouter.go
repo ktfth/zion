@@ -45,7 +45,7 @@ func NewOpenRouterProvider(config map[string]string) (Provider, error) {
 	}
 
 	// Valores padrão
-	model := "meta-llama/llama-3.2-3b-instruct:free"
+	model := "microsoft/wizardlm-2-8x22b"
 	maxTokens := 2048
 	temperature := 0.7
 	baseURL := "https://openrouter.ai/api/v1"
