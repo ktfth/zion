@@ -332,6 +332,25 @@ zion scaffold -l typescript -n web-app -d "Aplicação web moderna" \
 - `-p, --provider` - Provider de IA (gemini, gpt, openrouter, claude)
 - `-k, --api-key` - API key específica para o provider
 - `-m, --model` - Modelo específico do provider
+- `-r, --retries` - Número máximo de tentativas em caso de falha (padrão: 3)
+
+##### Sistema de Retry Inteligente
+O Zion CLI possui um sistema de retry robusto que garante maior confiabilidade:
+- **Retry automático**: Até 3 tentativas por padrão (configurável)
+- **Dois níveis**: Retry na geração de conteúdo e na criação da estrutura
+- **Feedback visual**: Mostra progresso e número de tentativas
+- **Intervalos inteligentes**: 2s entre tentativas de geração, 1s entre tentativas de criação
+
+Exemplo com retry customizado:
+```bash
+# Definir 5 tentativas máximas
+zion scaffold -l go -n api-project -d "API REST completa" --retries 5
+
+# Usar forma abreviada
+zion scaffold -l typescript -n web-app -d "Aplicação web" -r 2
+```
+
+Para mais detalhes, consulte a [documentação do sistema de retry](docs/retry_system.md).
 
 #### Outros comandos
 - `zion setup` - Configura o ambiente inicial
