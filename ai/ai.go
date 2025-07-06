@@ -134,6 +134,142 @@ Retorne um JSON com esta estrutura exata:
 	return response, nil
 }
 
+// GenerateProjectScaffoldingWithProvider gera uma estrutura de projeto com configurações customizadas de provider
+func GenerateProjectScaffoldingWithProvider(language, projectName, description string, registeredPlugins []string, providerName, apiKey, model string) (string, error) {
+	// Substituir SamplePlugin por CorePlugin em registeredPlugins
+	for i, plugin := range registeredPlugins {
+		if plugin == "SamplePlugin" {
+			registeredPlugins[i] = "CorePlugin"
+		}
+	}
+
+	// Criar o contexto de scaffold para os plugins
+	ctx := &plugins.ScaffoldContext{
+		ProjectName: projectName,
+		Language:    language,
+		Description: description,
+	}
+
+	// Executar o hook BeforeGeneration para todos os plugins
+	ctx = plugins.ExecuteHook(plugins.BeforeGeneration, ctx)
+
+	// Construir a descrição do projeto com mais detalhes e boas práticas
+	projectDesc := fmt.Sprintf(`Você é um especialista em desenvolvimento de software com vasta experiência em %s.
+Crie uma estrutura moderna e profissional para um projeto chamado '%s'.
+
+O projeto deve seguir:
+1. Arquitetura limpa e modular
+2. Padrões de projeto adequados à linguagem %s
+3. Estrutura de diretórios organizada e escalável
+4. Configuração de ambiente flexível
+5. Documentação clara e objetiva`, language, projectName, language)
+
+	// Adicionar descrição específica se fornecida
+	if description != "" {
+		projectDesc += fmt.Sprintf(`\n\nRequisitos específicos:\n%s`, description)
+	}
+
+	// Adicionar requisitos específicos por linguagem
+	projectDesc += getLanguageSpecificRequirements(language)
+
+	prompt := fmt.Sprintf(`%s
+
+IMPORTANTE: Para garantir um JSON válido, siga estas regras:
+
+1. Use apenas aspas duplas (") para strings
+2. Para valores de arquivos JSON (como package.json), use a seguinte sintaxe:
+   "arquivo.json": {
+     "content": {
+       // conteúdo do JSON aqui
+     }
+   }
+3. Para outros arquivos de texto, use a seguinte sintaxe:
+   "arquivo.txt": {
+     "content": "conteúdo do arquivo"
+   }
+4. Para nomes de pacotes npm que começam com @, use a seguinte sintaxe:
+   "dependencies": {
+     "pkg:@types/node": "^20.4.8",
+     "pkg:@typescript-eslint/parser": "^6.7.5"
+   }
+
+Retorne um JSON com esta estrutura exata:
+{
+  "structure": {
+    "directories": ["dir1", "dir2"],
+    "files": {
+      "arquivo.json": {
+        "content": {
+          // conteúdo JSON aqui
+        }
+      },
+      "arquivo.txt": {
+        "content": "conteúdo texto aqui"
+      }
+    }
+  }
+}`, projectDesc)
+
+	// Executar o hook ModifyPrompt para todos os plugins
+	ctx.Prompt = prompt
+	ctx = plugins.ExecuteHook(plugins.ModifyPrompt, ctx)
+	prompt = ctx.Prompt
+
+	// Obter configurações do provider
+	cfg := config.LoadConfig()
+
+	// Usar provider customizado se especificado
+	if providerName != "" {
+		cfg.AIProvider = providerName
+	}
+
+	// Obter configuração do AI
+	aiConfig := cfg.GetAIConfig()
+
+	// Override da API key se especificado
+	if apiKey != "" {
+		aiConfig["api_key"] = apiKey
+	}
+
+	// Override do modelo se especificado
+	if model != "" {
+		aiConfig["model"] = model
+	}
+
+	// Criar o provider
+	provider, err := providers.DefaultManager.GetProvider(cfg.AIProvider, aiConfig)
+	if err != nil {
+		return "", fmt.Errorf("erro ao obter provedor de IA: %v", err)
+	}
+
+	// Gerar conteúdo usando o provedor
+	fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
+	response, err := provider.GenerateContent(prompt)
+	if err != nil {
+		return "", err
+	}
+
+	// Atualizar a resposta no contexto
+	ctx.Response = response
+
+	// Executar o hook AfterGeneration para todos os plugins
+	ctx = plugins.ExecuteHook(plugins.AfterGeneration, ctx)
+
+	// Obter a resposta possivelmente modificada pelos plugins
+	response = ctx.Response
+
+	// Processar a resposta antes de retornar
+	if response != "" {
+		processedResponse, err := processScaffoldResponse(response)
+		if err != nil {
+			return "", fmt.Errorf("erro ao processar resposta: %v", err)
+		}
+		response = processedResponse
+	}
+
+	return response, nil
+}
+
 // getLanguageSpecificRequirements retorna requisitos específicos para cada linguagem
 func getLanguageSpecificRequirements(language string) string {
 	switch strings.ToLower(language) {

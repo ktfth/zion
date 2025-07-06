@@ -68,7 +68,7 @@ func (p *GeminiProvider) GenerateContent(prompt string) (string, error) {
 		return "", fmt.Errorf("erro ao criar request: %v", err)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("erro na chamada API: %v", err)

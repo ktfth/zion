@@ -9,26 +9,27 @@ import (
 	"time"
 )
 
-type GPTProvider struct {
+type OpenRouterProvider struct {
 	apiKey      string
 	model       string
 	maxTokens   int
 	temperature float64
+	baseURL     string
 }
 
-type gptRequest struct {
-	Model       string       `json:"model"`
-	Messages    []gptMessage `json:"messages"`
-	MaxTokens   int          `json:"max_tokens,omitempty"`
-	Temperature float64      `json:"temperature,omitempty"`
+type openRouterRequest struct {
+	Model       string              `json:"model"`
+	Messages    []openRouterMessage `json:"messages"`
+	MaxTokens   int                 `json:"max_tokens,omitempty"`
+	Temperature float64             `json:"temperature,omitempty"`
 }
 
-type gptMessage struct {
+type openRouterMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type gptResponse struct {
+type openRouterResponse struct {
 	Choices []struct {
 		Message struct {
 			Content string `json:"content"`
@@ -36,17 +37,18 @@ type gptResponse struct {
 	} `json:"choices"`
 }
 
-// NewGPTProvider cria um novo provedor OpenAI GPT
-func NewGPTProvider(config map[string]string) (Provider, error) {
+// NewOpenRouterProvider cria um novo provedor OpenRouter
+func NewOpenRouterProvider(config map[string]string) (Provider, error) {
 	apiKey, ok := config["api_key"]
 	if !ok {
-		return nil, fmt.Errorf("api_key não encontrada na configuração do GPT")
+		return nil, fmt.Errorf("api_key não encontrada na configuração do OpenRouter")
 	}
 
 	// Valores padrão
-	model := "gpt-3.5-turbo"
+	model := "meta-llama/llama-3.2-3b-instruct:free"
 	maxTokens := 2048
 	temperature := 0.7
+	baseURL := "https://openrouter.ai/api/v1"
 
 	// Sobrescrever com valores da configuração se fornecidos
 	if m, ok := config["model"]; ok && m != "" {
@@ -58,25 +60,29 @@ func NewGPTProvider(config map[string]string) (Provider, error) {
 	if temp, ok := config["temperature"]; ok && temp != "" {
 		fmt.Sscanf(temp, "%f", &temperature)
 	}
+	if url, ok := config["base_url"]; ok && url != "" {
+		baseURL = url
+	}
 
-	return &GPTProvider{
+	return &OpenRouterProvider{
 		apiKey:      apiKey,
 		model:       model,
 		maxTokens:   maxTokens,
 		temperature: temperature,
+		baseURL:     baseURL,
 	}, nil
 }
 
-func (p *GPTProvider) Name() string {
-	return "GPT"
+func (p *OpenRouterProvider) Name() string {
+	return "OpenRouter"
 }
 
-func (p *GPTProvider) GenerateContent(prompt string) (string, error) {
-	url := "https://api.openai.com/v1/chat/completions"
+func (p *OpenRouterProvider) GenerateContent(prompt string) (string, error) {
+	url := fmt.Sprintf("%s/chat/completions", p.baseURL)
 
-	request := gptRequest{
+	request := openRouterRequest{
 		Model: p.model,
-		Messages: []gptMessage{
+		Messages: []openRouterMessage{
 			{
 				Role:    "user",
 				Content: prompt,
@@ -99,6 +105,8 @@ func (p *GPTProvider) GenerateContent(prompt string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.apiKey))
+	req.Header.Set("HTTP-Referer", "https://github.com/zion-ai")
+	req.Header.Set("X-Title", "Zion AI")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -115,14 +123,14 @@ func (p *GPTProvider) GenerateContent(prompt string) (string, error) {
 		return "", fmt.Errorf("API retornou status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var gptResp gptResponse
-	if err := json.Unmarshal(body, &gptResp); err != nil {
+	var openRouterResp openRouterResponse
+	if err := json.Unmarshal(body, &openRouterResp); err != nil {
 		return "", fmt.Errorf("erro ao processar resposta: %v\nBody: %s", err, string(body))
 	}
 
-	if len(gptResp.Choices) == 0 {
+	if len(openRouterResp.Choices) == 0 {
 		return "", fmt.Errorf("nenhuma resposta gerada da API")
 	}
 
-	return gptResp.Choices[0].Message.Content, nil
+	return openRouterResp.Choices[0].Message.Content, nil
 }

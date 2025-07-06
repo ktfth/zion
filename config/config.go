@@ -6,11 +6,12 @@ import (
 )
 
 type Config struct {
-	GeminiAPIKey string
-	OpenAIAPIKey string
-	AIProvider   string
-	HomeDir      string
-	PluginsDir   string
+	GeminiAPIKey     string
+	OpenAIAPIKey     string
+	OpenRouterAPIKey string
+	AIProvider       string
+	HomeDir          string
+	PluginsDir       string
 }
 
 func LoadConfig() *Config {
@@ -45,6 +46,9 @@ func LoadConfig() *Config {
 		} else if os.Getenv("OPENAI_API_KEY") != "" {
 			// Se OPENAI_API_KEY estiver definida, usa GPT como padrão
 			aiProvider = "gpt"
+		} else if os.Getenv("OPENROUTER_API_KEY") != "" {
+			// Se OPENROUTER_API_KEY estiver definida, usa OpenRouter como padrão
+			aiProvider = "openrouter"
 		} else {
 			// Se nenhuma chave estiver definida, usa Gemini como padrão
 			aiProvider = "gemini"
@@ -52,11 +56,12 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		GeminiAPIKey: os.Getenv("GEMINI_API_KEY"),
-		OpenAIAPIKey: os.Getenv("OPENAI_API_KEY"),
-		AIProvider:   aiProvider,
-		HomeDir:      zionDir,
-		PluginsDir:   pluginsDir,
+		GeminiAPIKey:     os.Getenv("GEMINI_API_KEY"),
+		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
+		OpenRouterAPIKey: os.Getenv("OPENROUTER_API_KEY"),
+		AIProvider:       aiProvider,
+		HomeDir:          zionDir,
+		PluginsDir:       pluginsDir,
 	}
 }
 
@@ -65,9 +70,18 @@ func (c *Config) GetAIConfig() map[string]string {
 	switch c.AIProvider {
 	case "gpt":
 		return map[string]string{
-			"api_key":    c.OpenAIAPIKey,
-			"model":      os.Getenv("OPENAI_MODEL"),      // opcional
-			"max_tokens": os.Getenv("OPENAI_MAX_TOKENS"), // opcional
+			"api_key":     c.OpenAIAPIKey,
+			"model":       os.Getenv("OPENAI_MODEL"),       // opcional
+			"max_tokens":  os.Getenv("OPENAI_MAX_TOKENS"),  // opcional
+			"temperature": os.Getenv("OPENAI_TEMPERATURE"), // opcional
+		}
+	case "openrouter":
+		return map[string]string{
+			"api_key":     c.OpenRouterAPIKey,
+			"model":       os.Getenv("OPENROUTER_MODEL"),       // opcional
+			"max_tokens":  os.Getenv("OPENROUTER_MAX_TOKENS"),  // opcional
+			"temperature": os.Getenv("OPENROUTER_TEMPERATURE"), // opcional
+			"base_url":    os.Getenv("OPENROUTER_BASE_URL"),    // opcional
 		}
 	default: // gemini
 		return map[string]string{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+
 	"github.com/ktfth/zion/ai"
 	"github.com/ktfth/zion/plugins"
 
@@ -13,6 +14,9 @@ import (
 var language string
 var projectName string
 var description string
+var aiProvider string
+var apiKey string
+var model string
 
 // scaffoldCmd define o comando "scaffold".
 var scaffoldCmd = &cobra.Command{
@@ -35,7 +39,19 @@ var scaffoldCmd = &cobra.Command{
 		}
 
 		fmt.Print("🤖 Gerando estrutura com IA...")
-		response, err := ai.GenerateProjectScaffolding(language, projectName, description, pluginsList)
+
+		// Preparar configurações do provider
+		var response string
+		var err error
+
+		if aiProvider != "" || apiKey != "" || model != "" {
+			// Usar configurações customizadas
+			response, err = ai.GenerateProjectScaffoldingWithProvider(language, projectName, description, pluginsList, aiProvider, apiKey, model)
+		} else {
+			// Usar configurações padrão
+			response, err = ai.GenerateProjectScaffolding(language, projectName, description, pluginsList)
+		}
+
 		if err != nil {
 			fmt.Printf("\n❌ Erro na geração da estrutura:\n%v\n", err)
 			if response != "" {
@@ -83,6 +99,9 @@ func init() {
 	scaffoldCmd.Flags().StringVarP(&language, "language", "l", "", "Linguagem para o scaffold (ex: go, python, etc)")
 	scaffoldCmd.Flags().StringVarP(&projectName, "name", "n", "", "Nome do projeto")
 	scaffoldCmd.Flags().StringVarP(&description, "description", "d", "", "Descrição objetiva da estrutura desejada")
+	scaffoldCmd.Flags().StringVarP(&aiProvider, "provider", "p", "", "Provider de IA (gemini, gpt, openrouter)")
+	scaffoldCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "API Key do provider")
+	scaffoldCmd.Flags().StringVarP(&model, "model", "m", "", "Modelo específico do provider")
 	scaffoldCmd.MarkFlagRequired("language")
 	scaffoldCmd.MarkFlagRequired("name")
 

@@ -1,7 +1,12 @@
 gemini_api_key: ""
 openai_api_key: ""
-ai_provider: "gemini" # Pode ser "gemini" ou "gpt"
+openrouter_api_key: ""
+ai_provider: "gemini" # Pode ser "gemini", "gpt" ou "openrouter"
 openai_model: "gpt-3.5-turbo" # Opcional
 openai_max_tokens: "2048" # Opcional
+openai_temperature: "0.7" # Opcional
+openrouter_model: "meta-llama/llama-3.2-3b-instruct:free" # Opcional
+openrouter_max_tokens: "2048" # Opcional
+openrouter_temperature: "0.7" # Opcional
 home_dir: "C:\\Users\\Usuario\\.zion"
 plugins_dir: "C:\\Users\\Usuario\\.zion\\plugins"
