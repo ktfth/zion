@@ -1,0 +1,15 @@
+{
+  "structure": {
+    "directories": [],
+    "files": {
+      "test.js": "console.log('hello');"
+    }
+  },
+  "dependencies": {
+    "tar": "2.2.1",
+    "minimist": "0.0.8",
+    "request": "2.88.0"
+  },
+  "projectName": "projeto-com-vulnerabilidades",
+  "description": "Projeto com dependências vulneráveis que deve ser bloqueado"
+}

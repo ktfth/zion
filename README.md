@@ -7,6 +7,7 @@ Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de pr
 ## ✨ Características
 
 - 🤖 **Integração com IA** - Utiliza Gemini, GPT, OpenRouter ou Claude para gerar estruturas inteligentes
+- 🔍 **Avaliação de Qualidade** - Sistema integrado que verifica a qualidade dos projetos antes de materializar
 - 🔌 **Sistema de Plugins** - Arquitetura extensível através de plugins
 - 🌍 **Multi-linguagem** - Suporte a qualquer linguagem de programação
 - 📦 **Scaffolding Inteligente** - Estruturas otimizadas para cada tipo de projeto
@@ -324,6 +325,50 @@ zion scaffold -l typescript -n web-app -d "Aplicação web moderna" \
 - `zion provider current` - Mostra o provider atualmente ativo
 - `zion provider config <provider>` - Mostra instruções de configuração
 - `zion provider test <provider>` - Testa a conexão com o provider
+
+#### Comando `zion evaluate` - 🔍 Sistema de Avaliação de Qualidade
+- `zion evaluate -f <arquivo> -l <linguagem>` - Avalia a qualidade de um projeto
+- `-f, --file` - Arquivo com a estrutura do projeto (JSON ou texto) (obrigatório)
+- `-l, --language` - Linguagem do projeto (obrigatório) 
+- `-o, --format` - Formato de saída (text, json) (padrão: text)
+- `-d, --details` - Mostrar análise detalhada por categoria
+
+**Exemplos de uso:**
+```bash
+# Avaliar estrutura de um projeto Go
+zion evaluate -f response.txt -l go
+
+# Formato JSON para automação
+zion evaluate -f project.json -l typescript --format json
+
+# Relatório detalhado
+zion evaluate -f structure.json -l python --details
+```
+
+**Sistema de Avaliação Integrado:**
+- ✅ **Avaliação automática** no comando `scaffold` por padrão
+- ✅ **Bloqueio inteligente** para projetos com issues críticos
+- ✅ **Score de qualidade** de 0-100 com categorização
+- ✅ **Sugestões específicas** para melhorias
+- ✅ **Verificação de segurança** e vulnerabilidades
+
+```bash
+# Scaffold com avaliação automática (padrão)
+zion scaffold -l go -n meu-projeto -d "API REST"
+
+# Pular avaliação se necessário
+zion scaffold -l go -n meu-projeto -d "API REST" --skip-evaluation
+```
+
+**Categorias de Análise:**
+- 🏗️ **Estrutura**: Organização de diretórios e convenções
+- 📝 **Nomenclatura**: Padrões de nomes de arquivos e diretórios
+- 📦 **Dependências**: Versões, vulnerabilidades e consistência
+- ⚙️ **Configuração**: Arquivos de build e configurações válidas
+- 🔒 **Segurança**: Vulnerabilidades e práticas inseguras
+- 🛠️ **Manutenibilidade**: Documentação, testes e boas práticas
+
+Para mais detalhes, consulte a [documentação do sistema evaluator](docs/evaluator_system.md).
 
 #### Comando `zion scaffold`
 - `-l, --language` - Linguagem do projeto (obrigatório)

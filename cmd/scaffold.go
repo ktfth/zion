@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ktfth/zion/ai"
+	"github.com/ktfth/zion/evaluator"
 	"github.com/ktfth/zion/plugins"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,8 @@ var aiProvider string
 var apiKey string
 var model string
 var maxRetries int
+var skipEvaluation bool
+var enableAIEvaluation bool
 
 // scaffoldCmd define o comando "scaffold".
 var scaffoldCmd = &cobra.Command{
@@ -89,6 +92,67 @@ Exemplos:
 		}
 		fmt.Println(" ✅")
 
+		// Avaliar qualidade do projeto antes de materializar
+		if !skipEvaluation {
+			if enableAIEvaluation {
+				fmt.Print("🔍 Avaliando qualidade do projeto com IA...")
+			} else {
+				fmt.Print("🔍 Avaliando qualidade do projeto...")
+			}
+
+			evaluator := evaluator.NewProjectEvaluator()
+			evaluator.EnableAIEvaluation(enableAIEvaluation)
+			evalResult, err := evaluator.EvaluateProject(response, language)
+
+			if err != nil {
+				fmt.Printf("\n⚠️  Aviso: Erro na avaliação: %v\n", err)
+				fmt.Println("Continuando com a criação do projeto...")
+			} else {
+				fmt.Println(" ✅")
+
+				// Exibir resumo da avaliação
+				fmt.Printf("\n📊 RESULTADO DA AVALIAÇÃO\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				fmt.Printf("🎯 Score: %.1f/100\n", evalResult.Score)
+				fmt.Printf("⭐ Qualidade: %s\n", getQualityDisplay(evalResult.Quality))
+				fmt.Printf("⚠️  Issues: %d\n", len(evalResult.Issues))
+
+				if !evalResult.Valid {
+					fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+					fmt.Printf("❌ PROJETO COM ISSUES CRÍTICOS\n")
+
+					// Mostrar apenas issues críticos
+					for _, issue := range evalResult.Issues {
+						if issue.Severity == "critical" {
+							fmt.Printf("🚨 %s: %s\n", issue.Category, issue.Description)
+							if issue.Suggestion != "" {
+								fmt.Printf("   💡 %s\n", issue.Suggestion)
+							}
+						}
+					}
+
+					fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+					fmt.Printf("⚠️  Para ignorar a avaliação, use --skip-evaluation\n")
+					fmt.Printf("📋 Para ver relatório completo, use: zion evaluate -f response.txt -l %s\n", language)
+					os.Exit(1)
+				}
+
+				// Mostrar principais sugestões se score for baixo
+				if evalResult.Score < 80 && len(evalResult.Suggestions) > 0 {
+					fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+					fmt.Printf("💡 PRINCIPAIS SUGESTÕES:\n")
+					for i, suggestion := range evalResult.Suggestions {
+						if i >= 3 { // Mostrar só as 3 primeiras
+							break
+						}
+						fmt.Printf("• %s\n", suggestion)
+					}
+				}
+
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+			}
+		}
+
 		fmt.Print("📂 Criando estrutura do projeto...")
 
 		// Lógica de retry para criação da estrutura
@@ -147,6 +211,24 @@ Exemplos:
 	},
 }
 
+// getQualityDisplay retorna uma representação visual da qualidade
+func getQualityDisplay(quality evaluator.QualityLevel) string {
+	switch quality {
+	case "excellent":
+		return "🏆 EXCELENTE"
+	case "good":
+		return "✅ BOM"
+	case "fair":
+		return "⚡ REGULAR"
+	case "poor":
+		return "⚠️ RUIM"
+	case "critical":
+		return "❌ CRÍTICO"
+	default:
+		return "❓ INDEFINIDO"
+	}
+}
+
 func init() {
 	// Configura flags para o comando scaffold
 	scaffoldCmd.Flags().StringVarP(&language, "language", "l", "", "Linguagem para o scaffold (ex: go, python, etc)")
@@ -156,6 +238,8 @@ func init() {
 	scaffoldCmd.Flags().StringVarP(&apiKey, "api-key", "k", "", "API Key do provider")
 	scaffoldCmd.Flags().StringVarP(&model, "model", "m", "", "Modelo específico do provider")
 	scaffoldCmd.Flags().IntVarP(&maxRetries, "retries", "r", 3, "Número máximo de tentativas em caso de falha (padrão: 3)")
+	scaffoldCmd.Flags().BoolVar(&skipEvaluation, "skip-evaluation", false, "Pular avaliação de qualidade do projeto")
+	scaffoldCmd.Flags().BoolVar(&enableAIEvaluation, "ai-evaluation", false, "Habilitar avaliação avançada por IA")
 	scaffoldCmd.MarkFlagRequired("language")
 	scaffoldCmd.MarkFlagRequired("name")
 

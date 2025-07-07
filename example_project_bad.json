@@ -1,0 +1,27 @@
+{
+  "structure": {
+    "directories": [
+      "src",
+      "lib"
+    ],
+    "files": {
+      "main.go": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello World\")\n}",
+      "utils.go": "package main\n\nfunc Helper() string {\n\treturn \"helper\"\n}",
+      "config.json": "{\n\t\"database\": {\n\t\t\"host\": \"localhost\",\n\t\t\"password\": \"123456\",\n\t\t\"api_key\": \"secret-key-123\"\n\t}\n}",
+      "old-library-v1.2.3.tar.gz": "binary content",
+      "Test File With Spaces.go": "package main\n\n// File with problematic name",
+      "node_modules/express/index.js": "// Should not be in project structure",
+      "__pycache__/cache.pyc": "// Cache file that should be ignored"
+    }
+  },
+  "dependencies": {
+    "lodash": "3.10.1",
+    "moment": "2.18.1",
+    "request": "2.88.0",
+    "jquery": "1.12.4",
+    "express": "*",
+    "react": "15.6.2"
+  },
+  "projectName": "projeto-problematico",
+  "description": "Projeto com vários problemas de estrutura e dependências"
+}
