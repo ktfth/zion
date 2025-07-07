@@ -1,0 +1,45 @@
+# Projeto Zion CLI
+
+## Objetivo
+Ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de projetos em qualquer linguagem de programação, com foco em boas práticas e modularidade.
+
+## Descrição
+O Zion é uma CLI que integra com provedores de IA (Gemini, GPT, OpenRouter, Claude) para criar estruturas de projeto inteligentes. Agora com suporte a arquivos llms.txt para criação contextualizada.
+
+## Tecnologias
+- Go 1.20+
+- Cobra CLI framework
+- Múltiplos provedores de IA
+- Sistema de plugins extensível
+- Avaliação de qualidade de código
+
+## Arquitetura
+- cmd/ - Comandos CLI
+- ai/ - Lógica de IA e provedores
+- evaluator/ - Sistema de avaliação
+- config/ - Configurações
+- plugins/ - Sistema de plugins
+
+## Requisitos
+- Suporte a scaffolding contextualizado
+- Leitura de arquivos llms.txt
+- Detecção automática de linguagem
+- Merge inteligente com projetos existentes
+- Backup de arquivos importantes
+- Modo resiliente para falhas
+
+## Funcionalidades Atuais
+- ✅ Scaffolding básico
+- ✅ Múltiplos provedores de IA
+- ✅ Sistema de avaliação
+- ✅ Plugins
+- 🆕 Contexto llms.txt
+- 🆕 Modo contextual
+- 🆕 Merge inteligente
+
+## Arquivos de Contexto
+./README.md
+./go.mod
+./cmd/scaffold.go
+./ai/ai.go
+./config/config.go

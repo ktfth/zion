@@ -1,1 +1,0 @@
-Welcome to the test-consistency project! This is a modern, scalable, and well-structured JavaScript project template.

@@ -1,1 +1,0 @@
-{ "structure": { "files": { "index.js": { "type": "file", "content": "console.log(\"vulnerable code\");" }, ".env": { "type": "file", "content": "API_KEY=secret123" } } } }

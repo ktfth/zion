@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ktfth/zion/ai"
@@ -21,6 +22,7 @@ var model string
 var maxRetries int
 var skipEvaluation bool
 var enableAIEvaluation bool
+var contextualMode bool
 
 // scaffoldCmd define o comando "scaffold".
 var scaffoldCmd = &cobra.Command{
@@ -31,18 +33,114 @@ var scaffoldCmd = &cobra.Command{
 O comando inclui um sistema de retry inteligente que tenta até 3 vezes (configurável) 
 caso a geração inicial falhe, garantindo maior robustez na criação dos projetos.
 
+MODO CONTEXTUAL:
+Quando executado em um diretório com arquivo 'llms.txt', o comando automaticamente
+entra em modo contextual, lendo informações do projeto existente para gerar
+recursos adicionais de forma mais precisa e contextualizada.
+
 Exemplos:
   zion scaffold -l go -n meu-projeto -d "API REST com PostgreSQL"
   zion scaffold -l typescript -n webapp -d "App React com TypeScript" -r 5
-  zion scaffold -l python -n ml-project -d "Projeto de Machine Learning" --retries 2`,
+  zion scaffold -l python -n ml-project -d "Projeto de Machine Learning" --retries 2
+  zion scaffold --contextual -d "Adicionar sistema de autenticação" (em projeto existente)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		startTime := time.Now()
 
-		fmt.Printf("\n🚀 Iniciando geração do projeto\n")
+		// Verificar se estamos em modo contextual
+		llmsContext, _ := ai.ReadLLMsContext(".")
+		isContextualMode := contextualMode || llmsContext.HasLLMsFile
+
+		if isContextualMode {
+			if llmsContext.HasLLMsFile {
+				fmt.Printf("\n� MODO CONTEXTUAL DETECTADO\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				fmt.Printf("📖 Arquivo llms.txt encontrado\n")
+
+				// Auto-detectar parâmetros do contexto
+				if language == "" {
+					detectedLang := llmsContext.DetectProjectLanguage()
+					if detectedLang != "" {
+						language = detectedLang
+						fmt.Printf("🔍 Linguagem detectada: %s\n", language)
+					}
+				}
+
+				if projectName == "" {
+					currentDir, _ := os.Getwd()
+					projectName = filepath.Base(currentDir)
+					fmt.Printf("📁 Nome do projeto: %s\n", projectName)
+				}
+
+				if description == "" {
+					projectDesc := llmsContext.GetProjectDescription()
+					if projectDesc != "" {
+						description = "Expandir projeto baseado no contexto existente"
+						fmt.Printf("📝 Modo: Expansão contextual\n")
+					}
+				}
+
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+			} else if contextualMode {
+				// Modo contextual forçado sem llms.txt - usar análise estrutural
+				fmt.Printf("\n🔍 MODO CONTEXTUAL - ANÁLISE ESTRUTURAL\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				fmt.Printf("📄 Arquivo llms.txt não encontrado - usando análise da estrutura\n")
+
+				// Ainda tentar detectar parâmetros básicos
+				if projectName == "" {
+					currentDir, _ := os.Getwd()
+					projectName = filepath.Base(currentDir)
+					fmt.Printf("📁 Nome do projeto: %s\n", projectName)
+				}
+
+				// Tentar detectar linguagem pelos arquivos existentes
+				if language == "" {
+					detectedLang := llmsContext.DetectProjectLanguage()
+					if detectedLang != "" {
+						language = detectedLang
+						fmt.Printf("🔍 Linguagem detectada: %s\n", language)
+					}
+				}
+
+				// Configurar modo de expansão estrutural
+				if description == "" {
+					description = "Expandir projeto baseado na análise da estrutura existente"
+				}
+
+				fmt.Printf("🧠 Modo: Análise estrutural inteligente\n")
+				fmt.Printf("💡 Dica: Crie um arquivo llms.txt para melhor contextualização\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+			}
+		}
+
+		// Validação final de parâmetros obrigatórios
+		if language == "" || projectName == "" {
+			fmt.Printf("❌ Parâmetros obrigatórios em falta:\n")
+			if language == "" {
+				fmt.Printf("   - Linguagem (-l/--language) não pôde ser detectada automaticamente\n")
+			}
+			if projectName == "" {
+				fmt.Printf("   - Nome do projeto (-n/--name) não pôde ser determinado\n")
+			}
+			fmt.Printf("\n💡 Use 'zion scaffold --help' para mais informações\n")
+			if isContextualMode {
+				fmt.Printf("💡 Em modo contextual, tente especificar os parâmetros manualmente\n")
+			}
+			os.Exit(1)
+		}
+
+		fmt.Printf("\n�🚀 Iniciando geração do projeto\n")
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 		fmt.Printf("📦 Projeto: %s\n", projectName)
 		fmt.Printf("🔧 Linguagem: %s\n", language)
 		fmt.Printf("📝 Descrição: %s\n", description)
+		if isContextualMode {
+			if llmsContext.HasLLMsFile {
+				fmt.Printf("🎯 Modo: Contextual (baseado em llms.txt)\n")
+			} else {
+				fmt.Printf("🎯 Modo: Contextual (análise estrutural)\n")
+			}
+		}
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
 		// Lista plugins ativos
@@ -162,7 +260,13 @@ Exemplos:
 				fmt.Printf("\n🔄 Tentativa de criação %d/%d...", createAttempt, maxRetries)
 			}
 
-			err = ai.ExtractAndCreateProject(projectName, response)
+			// Usar criação contextual se estamos em modo contextual (com ou sem llms.txt)
+			if isContextualMode {
+				err = ai.CreateContextualProject(projectName, response, llmsContext)
+			} else {
+				err = ai.ExtractAndCreateProject(projectName, response)
+			}
+
 			if err == nil {
 				break
 			}
@@ -175,13 +279,24 @@ Exemplos:
 		}
 
 		if err != nil {
-			fmt.Printf("\n⚠️  Erro ao criar estrutura padrão após %d tentativas, tentando método alternativo...\n", maxRetries)
-			err = ai.SaveRawResponse(projectName, response)
-			if err != nil {
-				fmt.Printf("\n❌ Erro ao salvar resposta:\n%v\n", err)
-				os.Exit(1)
+			fmt.Printf("\n⚠️  Erro ao criar estrutura após %d tentativas, tentando método alternativo...\n", maxRetries)
+			if isContextualMode {
+				// Para modo contextual (com ou sem llms.txt), salvar em arquivo de saída
+				err = ai.SaveRawResponse("zion_contextual_output", response)
+				if err != nil {
+					fmt.Printf("\n❌ Erro ao salvar resposta:\n%v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println("💡 Resposta salva em zion_contextual_output.md para revisão manual.")
+			} else {
+				// Para modo normal, usar método padrão
+				err = ai.SaveRawResponse(projectName, response)
+				if err != nil {
+					fmt.Printf("\n❌ Erro ao salvar resposta:\n%v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println("💡 Resposta salva em README.md no diretório do projeto.")
 			}
-			fmt.Println("💡 Resposta salva em README.md no diretório do projeto.")
 		}
 		fmt.Println(" ✅")
 
@@ -240,8 +355,10 @@ func init() {
 	scaffoldCmd.Flags().IntVarP(&maxRetries, "retries", "r", 3, "Número máximo de tentativas em caso de falha (padrão: 3)")
 	scaffoldCmd.Flags().BoolVar(&skipEvaluation, "skip-evaluation", false, "Pular avaliação de qualidade do projeto")
 	scaffoldCmd.Flags().BoolVar(&enableAIEvaluation, "ai-evaluation", false, "Habilitar avaliação avançada por IA")
-	scaffoldCmd.MarkFlagRequired("language")
-	scaffoldCmd.MarkFlagRequired("name")
+	scaffoldCmd.Flags().BoolVar(&contextualMode, "contextual", false, "Força modo contextual (usar arquivo llms.txt)")
+
+	// Flags obrigatórias são validadas dentro do comando, não aqui
+	// para permitir modo contextual sem todas as flags
 
 	// Registra o comando scaffold no comando raiz
 	rootCmd.AddCommand(scaffoldCmd)

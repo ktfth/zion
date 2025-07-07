@@ -27,6 +27,36 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 		}
 	}
 
+	// Ler contexto do llms.txt se existir
+	llmsContext, err := ReadLLMsContext(".")
+	if err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao ler contexto llms.txt: %v\n", err)
+		llmsContext = &LLMsContext{} // Contexto vazio
+	}
+
+	// Se o llms.txt existe, enriquecer os parâmetros
+	if llmsContext.HasLLMsFile {
+		fmt.Println("📖 Contexto llms.txt detectado - enriquecendo scaffolding...")
+
+		// Auto-detectar linguagem se não especificada
+		if language == "" {
+			detectedLang := llmsContext.DetectProjectLanguage()
+			if detectedLang != "" {
+				language = detectedLang
+				fmt.Printf("🔍 Linguagem detectada: %s\n", language)
+			}
+		}
+
+		// Enriquecer descrição com contexto
+		if projectDesc := llmsContext.GetProjectDescription(); projectDesc != "" {
+			if description == "" {
+				description = projectDesc
+			} else {
+				description = description + "\n\nContexto adicional:\n" + projectDesc
+			}
+		}
+	}
+
 	// Criar o contexto de scaffold para os plugins
 	ctx := &plugins.ScaffoldContext{
 		ProjectName: projectName,
@@ -39,6 +69,12 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 
 	// Construir o prompt usando o novo sistema melhorado
 	prompt := buildImprovedPrompt(language, projectName, description)
+
+	// SEMPRE enriquecer prompt com análise estrutural (com ou sem llms.txt)
+	prompt, err = llmsContext.BuildContextualPrompt(prompt, description)
+	if err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao construir prompt contextual: %v\n", err)
+	}
 
 	// Executar o hook ModifyPrompt para todos os plugins
 	ctx.Prompt = prompt
@@ -89,6 +125,36 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 		}
 	}
 
+	// Ler contexto do llms.txt se existir
+	llmsContext, err := ReadLLMsContext(".")
+	if err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao ler contexto llms.txt: %v\n", err)
+		llmsContext = &LLMsContext{} // Contexto vazio
+	}
+
+	// Se o llms.txt existe, enriquecer os parâmetros
+	if llmsContext.HasLLMsFile {
+		fmt.Println("📖 Contexto llms.txt detectado - enriquecendo scaffolding...")
+
+		// Auto-detectar linguagem se não especificada
+		if language == "" {
+			detectedLang := llmsContext.DetectProjectLanguage()
+			if detectedLang != "" {
+				language = detectedLang
+				fmt.Printf("🔍 Linguagem detectada: %s\n", language)
+			}
+		}
+
+		// Enriquecer descrição com contexto
+		if projectDesc := llmsContext.GetProjectDescription(); projectDesc != "" {
+			if description == "" {
+				description = projectDesc
+			} else {
+				description = description + "\n\nContexto adicional:\n" + projectDesc
+			}
+		}
+	}
+
 	// Criar o contexto de scaffold para os plugins
 	ctx := &plugins.ScaffoldContext{
 		ProjectName: projectName,
@@ -101,6 +167,12 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 
 	// Construir o prompt usando o novo sistema melhorado
 	prompt := buildImprovedPrompt(language, projectName, description)
+
+	// SEMPRE enriquecer prompt com análise estrutural (com ou sem llms.txt)
+	prompt, err = llmsContext.BuildContextualPrompt(prompt, description)
+	if err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao construir prompt contextual: %v\n", err)
+	}
 
 	// Executar o hook ModifyPrompt para todos os plugins
 	ctx.Prompt = prompt

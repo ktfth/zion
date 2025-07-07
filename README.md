@@ -13,6 +13,8 @@ Uma ferramenta de scaffolding moderna que utiliza IA para gerar estruturas de pr
 - 📦 **Scaffolding Inteligente** - Estruturas otimizadas para cada tipo de projeto
 - 🛠️ **Configurável** - Personalizável através de plugins e configurações
 - 🪟 **Suporte a Windows** - Funciona perfeitamente em ambientes Windows
+- 🧠 **Contexto llms.txt** - Scaffolding contextualizado baseado em arquivos de especificação
+- 🔄 **Modo Contextual** - Expande projetos existentes de forma inteligente e segura
 
 ## 🚦 Começando
 
