@@ -13,7 +13,7 @@ import (
 
 // LayeredGenerator gerencia a geração de projetos por camadas para contextos grandes
 type LayeredGenerator struct {
-	provider     providers.AIProvider
+	provider     providers.Provider
 	maxTokens    int
 	language     string
 	projectName  string
@@ -78,6 +78,11 @@ func determineMaxTokens(providerName string) int {
 	default:
 		return 50000 // Valor conservador para providers desconhecidos
 	}
+}
+
+// EstimateTokens estima aproximadamente o número de tokens em um texto (função exportada)
+func EstimateTokens(text string) int {
+	return estimateTokens(text)
 }
 
 // estimateTokens estima aproximadamente o número de tokens em um texto

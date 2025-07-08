@@ -88,6 +88,9 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 		return "", fmt.Errorf("erro ao obter provedor de IA: %v", err)
 	}
 
+	// Declarar variável de resposta
+	var response string
+
 	// Verificar se há risco de overflow de contexto antes de gerar
 	if DetectContextOverflow(prompt, provider.Name()) {
 		fmt.Printf("⚠️  Contexto muito grande detectado - usando geração em camadas\n")
@@ -934,6 +937,11 @@ func getFileExtension(language string) string {
 	default:
 		return "txt"
 	}
+}
+
+// BuildImprovedPrompt constrói um prompt melhorado e mais consistente (função exportada)
+func BuildImprovedPrompt(language, projectName, description string) string {
+	return buildImprovedPrompt(language, projectName, description)
 }
 
 // buildImprovedPrompt constrói um prompt melhorado e mais consistente
