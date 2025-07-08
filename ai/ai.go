@@ -106,11 +106,8 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 			return "", fmt.Errorf("erro na geração em camadas: %v", err)
 		}
 
-		// Converter para formato padrão
-		scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
-
-		// Serializar a resposta
-		responseBytes, err := json.MarshalIndent(scaffoldResponse, "", "  ")
+		// Serializar a resposta em camadas diretamente
+		responseBytes, err := json.MarshalIndent(layeredResponse, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
 		}
@@ -162,11 +159,18 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 
 	// Processar a resposta antes de retornar
 	if response != "" {
-		processedResponse, err := processScaffoldResponse(response)
-		if err != nil {
-			return "", fmt.Errorf("erro ao processar resposta: %v", err)
+		// Verificar se é uma resposta em camadas (contém "layers" e "project_info")
+		if strings.Contains(response, `"layers"`) && strings.Contains(response, `"project_info"`) {
+			// É uma resposta em camadas, não processar como scaffold tradicional
+			return response, nil
+		} else {
+			// É uma resposta tradicional, processar normalmente
+			processedResponse, err := processScaffoldResponse(response)
+			if err != nil {
+				return "", fmt.Errorf("erro ao processar resposta: %v", err)
+			}
+			response = processedResponse
 		}
-		response = processedResponse
 	}
 
 	return response, nil
@@ -278,11 +282,8 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 			return "", fmt.Errorf("erro na geração em camadas: %v", err)
 		}
 
-		// Converter para formato padrão
-		scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
-
-		// Serializar a resposta
-		responseBytes, err := json.MarshalIndent(scaffoldResponse, "", "  ")
+		// Serializar a resposta em camadas diretamente
+		responseBytes, err := json.MarshalIndent(layeredResponse, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
 		}
@@ -307,11 +308,8 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 					return "", fmt.Errorf("erro original: %v, erro na geração em camadas: %v", err, layerErr)
 				}
 
-				// Converter para formato padrão
-				scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
-
-				// Serializar a resposta
-				responseBytes, marshalErr := json.MarshalIndent(scaffoldResponse, "", "  ")
+				// Serializar a resposta em camadas diretamente
+				responseBytes, marshalErr := json.MarshalIndent(layeredResponse, "", "  ")
 				if marshalErr != nil {
 					return "", fmt.Errorf("erro original: %v, erro ao serializar resposta em camadas: %v", err, marshalErr)
 				}
@@ -334,11 +332,18 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 
 	// Processar a resposta antes de retornar
 	if response != "" {
-		processedResponse, err := processScaffoldResponse(response)
-		if err != nil {
-			return "", fmt.Errorf("erro ao processar resposta: %v", err)
+		// Verificar se é uma resposta em camadas (contém "layers" e "project_info")
+		if strings.Contains(response, `"layers"`) && strings.Contains(response, `"project_info"`) {
+			// É uma resposta em camadas, não processar como scaffold tradicional
+			return response, nil
+		} else {
+			// É uma resposta tradicional, processar normalmente
+			processedResponse, err := processScaffoldResponse(response)
+			if err != nil {
+				return "", fmt.Errorf("erro ao processar resposta: %v", err)
+			}
+			response = processedResponse
 		}
-		response = processedResponse
 	}
 
 	return response, nil
