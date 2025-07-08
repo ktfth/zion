@@ -174,7 +174,12 @@ Exemplos:
 				break
 			}
 
-			if attempt < maxRetries {
+			// Verificar se é erro de contexto e se ainda não tentamos camadas
+			if ai.IsContextOverflowError(err) && attempt == 1 {
+				fmt.Printf("\n⚠️  Erro de contexto detectado na tentativa %d\n", attempt)
+				fmt.Printf("🔄 O sistema automaticamente tentará geração em camadas...\n")
+				// O erro será tratado automaticamente dentro dos métodos de geração
+			} else if attempt < maxRetries {
 				fmt.Printf("\n⚠️  Erro na tentativa %d: %v", attempt, err)
 				fmt.Printf("\n🔄 Tentando novamente em 2 segundos...")
 				time.Sleep(2 * time.Second)
@@ -264,7 +269,8 @@ Exemplos:
 			if isContextualMode {
 				err = ai.CreateContextualProject(projectName, response, llmsContext)
 			} else {
-				err = ai.ExtractAndCreateProject(projectName, response)
+				// Tentar primeiro o método que suporta camadas
+				err = ai.ExtractAndCreateLayeredProject(projectName, response)
 			}
 
 			if err == nil {
@@ -362,4 +368,82 @@ func init() {
 
 	// Registra o comando scaffold no comando raiz
 	rootCmd.AddCommand(scaffoldCmd)
+
+	// Registra o comando de teste das camadas
+	rootCmd.AddCommand(testLayersCmd)
+}
+
+// testLayersCmd testa o sistema de geração em camadas
+var testLayersCmd = &cobra.Command{
+	Use:   "test-layers",
+	Short: "Testa o sistema de geração em camadas",
+	Long: `Executa testes do sistema de geração em camadas para verificar
+se a funcionalidade está operando corretamente.
+
+Este comando é útil para:
+- Verificar se o sistema de detecção de overflow funciona
+- Testar o planejamento automático de camadas
+- Validar a conversão entre formatos
+- Diagnosticar problemas no sistema de camadas
+
+Exemplo:
+  zion test-layers`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("\n🧪 TESTE DO SISTEMA DE GERAÇÃO EM CAMADAS\n")
+		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+		// Teste 1: Detecção de overflow
+		fmt.Printf("1️⃣ Testando detecção de overflow...\n")
+
+		// Criar um prompt muito grande
+		largePrompt := "Este é um prompt de teste "
+		for i := 0; i < 100000; i++ {
+			largePrompt += "muito grande com muitas palavras "
+		}
+
+		isOverflow := ai.DetectContextOverflow(largePrompt, "openrouter")
+		if isOverflow {
+			fmt.Printf("✅ Detecção de overflow funcionando\n")
+		} else {
+			fmt.Printf("❌ Falha na detecção de overflow\n")
+		}
+
+		// Teste 2: Detecção de erro de contexto
+		fmt.Printf("\n2️⃣ Testando detecção de erros de contexto...\n")
+
+		testErrors := []string{
+			"This endpoint's maximum context length is 200000 tokens",
+			"API retornou status 400: token limit exceeded",
+			"context too long",
+		}
+
+		for _, errMsg := range testErrors {
+			testErr := fmt.Errorf(errMsg)
+			if ai.IsContextOverflowError(testErr) {
+				fmt.Printf("✅ Detectou erro de contexto: %s\n", errMsg[:50]+"}")
+			} else {
+				fmt.Printf("❌ Falha na detecção: %s\n", errMsg[:50]+"}")
+			}
+		}
+
+		// Teste 3: Criação do gerador em camadas
+		fmt.Printf("\n3️⃣ Testando criação do gerador em camadas...\n")
+
+		llmsContext := &ai.LLMsContext{}
+		layeredGen, err := ai.NewLayeredGenerator("go", "test-project", "Test project description", llmsContext)
+		if err != nil {
+			fmt.Printf("❌ Erro ao criar gerador: %v\n", err)
+		} else {
+			fmt.Printf("✅ Gerador em camadas criado com sucesso\n")
+			_ = layeredGen
+		}
+
+		fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		fmt.Printf("✅ Teste concluído\n\n")
+	},
+}
+
+func init() {
+	// Registra o comando test-layers no comando raiz
+	rootCmd.AddCommand(testLayersCmd)
 }

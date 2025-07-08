@@ -1,0 +1,223 @@
+package ai
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// CreateLayeredProject cria a estrutura do projeto baseada na resposta em camadas
+func CreateLayeredProject(projectName string, layeredResponse *LayeredResponse) error {
+	fmt.Printf("\n🏗️  Materializando projeto em camadas: %s\n", projectName)
+
+	// Criar o diretório raiz do projeto
+	projectDir := filepath.Join(".", projectName)
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		return fmt.Errorf("erro ao criar diretório do projeto: %v", err)
+	}
+
+	// Coletar todos os diretórios únicos de todas as camadas
+	allDirs := make(map[string]bool)
+	for _, layer := range layeredResponse.Layers {
+		for _, dir := range layer.Directories {
+			allDirs[dir] = true
+		}
+	}
+
+	// Criar todos os diretórios
+	fmt.Printf("📁 Criando %d diretórios...\n", len(allDirs))
+	for dir := range allDirs {
+		if dir == "" || dir == "." {
+			continue
+		}
+		dirPath := filepath.Join(projectDir, dir)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório %s: %v", dir, err)
+		}
+		fmt.Printf("   📂 %s\n", dir)
+	}
+
+	// Criar arquivos por camada
+	totalFiles := 0
+	for i, layer := range layeredResponse.Layers {
+		fmt.Printf("\n⚙️  Materializando camada %d/%d: %s\n", i+1, len(layeredResponse.Layers), layer.LayerName)
+
+		layerFileCount := 0
+		for filePath, content := range layer.Files {
+			fullPath := filepath.Join(projectDir, filePath)
+
+			// Garantir que o diretório pai exista
+			parentDir := filepath.Dir(fullPath)
+			if err := os.MkdirAll(parentDir, 0755); err != nil {
+				return fmt.Errorf("erro ao criar diretório pai para %s: %v", filePath, err)
+			}
+
+			// Determinar o conteúdo do arquivo
+			var contentBytes []byte
+			var err error
+
+			// Se o content é um objeto com campo "content"
+			if contentMap, ok := content.(map[string]interface{}); ok {
+				if contentValue, exists := contentMap["content"]; exists {
+					// Se é string, usar diretamente
+					if strContent, isString := contentValue.(string); isString {
+						contentBytes = []byte(strContent)
+					} else {
+						// Se é objeto (JSON), serializar
+						contentBytes, err = json.MarshalIndent(contentValue, "", "  ")
+						if err != nil {
+							return fmt.Errorf("erro ao serializar conteúdo JSON para %s: %v", filePath, err)
+						}
+					}
+				} else {
+					// Se não tem campo "content", usar o objeto inteiro
+					contentBytes, err = json.MarshalIndent(content, "", "  ")
+					if err != nil {
+						return fmt.Errorf("erro ao serializar conteúdo para %s: %v", filePath, err)
+					}
+				}
+			} else if strContent, ok := content.(string); ok {
+				// Se é string direta
+				contentBytes = []byte(strContent)
+			} else {
+				// Se é qualquer outro tipo, serializar como JSON
+				contentBytes, err = json.MarshalIndent(content, "", "  ")
+				if err != nil {
+					return fmt.Errorf("erro ao serializar conteúdo para %s: %v", filePath, err)
+				}
+			}
+
+			// Escrever o arquivo
+			if err := os.WriteFile(fullPath, contentBytes, 0644); err != nil {
+				return fmt.Errorf("erro ao criar arquivo %s: %v", filePath, err)
+			}
+
+			fmt.Printf("   📄 %s (%d bytes)\n", filePath, len(contentBytes))
+			layerFileCount++
+			totalFiles++
+		}
+
+		fmt.Printf("✅ Camada %s: %d arquivos criados\n", layer.LayerName, layerFileCount)
+
+		// Mostrar dependências se existirem
+		if len(layer.Dependencies) > 0 {
+			fmt.Printf("   📦 Dependências: %v\n", layer.Dependencies)
+		}
+
+		// Mostrar próximos passos se existirem
+		if len(layer.NextSteps) > 0 {
+			fmt.Printf("   📋 Próximos passos: %v\n", layer.NextSteps)
+		}
+	}
+
+	fmt.Printf("\n🎉 Projeto criado com sucesso!\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("📁 Local: %s\n", projectDir)
+	fmt.Printf("📂 Diretórios: %d\n", len(allDirs))
+	fmt.Printf("📄 Arquivos: %d\n", totalFiles)
+	fmt.Printf("🏗️  Camadas: %d\n", len(layeredResponse.Layers))
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	// Criar um arquivo de resumo das camadas
+	summaryPath := filepath.Join(projectDir, "ZION_LAYERS_SUMMARY.md")
+	summaryContent := generateLayersSummary(layeredResponse)
+	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0644); err != nil {
+		fmt.Printf("⚠️  Aviso: Não foi possível criar resumo das camadas: %v\n", err)
+	} else {
+		fmt.Printf("📋 Resumo das camadas salvo em: ZION_LAYERS_SUMMARY.md\n")
+	}
+
+	return nil
+}
+
+// generateLayersSummary gera um resumo em markdown das camadas criadas
+func generateLayersSummary(layeredResponse *LayeredResponse) string {
+	summary := fmt.Sprintf(`# Resumo das Camadas - %s
+
+Este projeto foi gerado pelo Zion AI usando o sistema de camadas para gerenciar contextos grandes.
+
+## Informações do Projeto
+
+- **Nome**: %s
+- **Linguagem**: %s
+- **Descrição**: %s
+- **Camadas Criadas**: %d
+
+## Camadas Implementadas
+
+`, layeredResponse.ProjectInfo.Name,
+		layeredResponse.ProjectInfo.Name,
+		layeredResponse.ProjectInfo.Language,
+		layeredResponse.ProjectInfo.Description,
+		len(layeredResponse.Layers))
+
+	for i, layer := range layeredResponse.Layers {
+		summary += fmt.Sprintf(`### %d. %s
+
+**Descrição**: %s
+
+**Arquivos criados** (%d):
+`, i+1, layer.LayerName, layer.Description, len(layer.Files))
+
+		for filePath := range layer.Files {
+			summary += fmt.Sprintf("- `%s`\n", filePath)
+		}
+
+		if len(layer.Directories) > 0 {
+			summary += fmt.Sprintf("\n**Diretórios** (%d):\n", len(layer.Directories))
+			for _, dir := range layer.Directories {
+				summary += fmt.Sprintf("- `%s/`\n", dir)
+			}
+		}
+
+		if len(layer.Dependencies) > 0 {
+			summary += fmt.Sprintf("\n**Dependências**:\n")
+			for _, dep := range layer.Dependencies {
+				summary += fmt.Sprintf("- %s\n", dep)
+			}
+		}
+
+		if len(layer.NextSteps) > 0 {
+			summary += fmt.Sprintf("\n**Próximos Passos**:\n")
+			for _, step := range layer.NextSteps {
+				summary += fmt.Sprintf("- %s\n", step)
+			}
+		}
+
+		summary += "\n"
+	}
+
+	summary += `
+## Como foi gerado
+
+Este projeto foi criado usando o sistema de geração em camadas do Zion AI, que divide projetos grandes em múltiplas etapas de geração para evitar limitações de contexto das APIs de IA.
+
+Cada camada foi gerada de forma sequencial, mantendo consistência entre elas e garantindo que o resultado final seja um projeto coeso e funcional.
+
+## Próximos Passos
+
+1. Revise os arquivos gerados em cada camada
+2. Instale as dependências listadas nas camadas relevantes
+3. Execute os comandos sugeridos nos "Próximos Passos" de cada camada
+4. Teste a funcionalidade básica do projeto
+
+---
+*Gerado por Zion AI - Sistema de Geração em Camadas*
+`
+
+	return summary
+}
+
+// ExtractAndCreateLayeredProject é um wrapper que aceita JSON de resposta em camadas
+func ExtractAndCreateLayeredProject(projectName, jsonResponse string) error {
+	// Tentar decodificar como resposta em camadas primeiro
+	var layeredResponse LayeredResponse
+	if err := json.Unmarshal([]byte(jsonResponse), &layeredResponse); err == nil {
+		// É uma resposta em camadas
+		return CreateLayeredProject(projectName, &layeredResponse)
+	}
+
+	// Se não for resposta em camadas, tentar o método tradicional
+	return ExtractAndCreateProject(projectName, jsonResponse)
+}

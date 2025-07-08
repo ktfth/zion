@@ -88,11 +88,64 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 		return "", fmt.Errorf("erro ao obter provedor de IA: %v", err)
 	}
 
-	// Gerar conteúdo usando o provedor
-	fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
-	response, err := provider.GenerateContent(prompt)
-	if err != nil {
-		return "", err
+	// Verificar se há risco de overflow de contexto antes de gerar
+	if DetectContextOverflow(prompt, provider.Name()) {
+		fmt.Printf("⚠️  Contexto muito grande detectado - usando geração em camadas\n")
+
+		// Usar gerador em camadas
+		layeredGen, err := NewLayeredGenerator(language, projectName, description, llmsContext)
+		if err != nil {
+			return "", fmt.Errorf("erro ao criar gerador em camadas: %v", err)
+		}
+
+		layeredResponse, err := layeredGen.GenerateLayeredProject()
+		if err != nil {
+			return "", fmt.Errorf("erro na geração em camadas: %v", err)
+		}
+
+		// Converter para formato padrão
+		scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
+
+		// Serializar a resposta
+		responseBytes, err := json.MarshalIndent(scaffoldResponse, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
+		}
+
+		response = string(responseBytes)
+	} else {
+		// Gerar conteúdo usando o provedor normalmente
+		fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
+		response, err = provider.GenerateContent(prompt)
+		if err != nil {
+			// Verificar se é erro de contexto e tentar geração em camadas
+			if IsContextOverflowError(err) {
+				fmt.Printf("❌ Erro de contexto detectado - tentando geração em camadas\n")
+
+				layeredGen, layerErr := NewLayeredGenerator(language, projectName, description, llmsContext)
+				if layerErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro ao criar gerador em camadas: %v", err, layerErr)
+				}
+
+				layeredResponse, layerErr := layeredGen.GenerateLayeredProject()
+				if layerErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro na geração em camadas: %v", err, layerErr)
+				}
+
+				// Converter para formato padrão
+				scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
+
+				// Serializar a resposta
+				responseBytes, marshalErr := json.MarshalIndent(scaffoldResponse, "", "  ")
+				if marshalErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro ao serializar resposta em camadas: %v", err, marshalErr)
+				}
+
+				response = string(responseBytes)
+			} else {
+				return "", err
+			}
+		}
 	}
 
 	// Atualizar a resposta no contexto
@@ -206,11 +259,65 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 		return "", fmt.Errorf("erro ao obter provedor de IA: %v", err)
 	}
 
-	// Gerar conteúdo usando o provedor
-	fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
-	response, err := provider.GenerateContent(prompt)
-	if err != nil {
-		return "", err
+	// Verificar se há risco de overflow de contexto antes de gerar
+	var response string
+	if DetectContextOverflow(prompt, provider.Name()) {
+		fmt.Printf("⚠️  Contexto muito grande detectado - usando geração em camadas\n")
+
+		// Usar gerador em camadas
+		layeredGen, err := NewLayeredGenerator(language, projectName, description, llmsContext)
+		if err != nil {
+			return "", fmt.Errorf("erro ao criar gerador em camadas: %v", err)
+		}
+
+		layeredResponse, err := layeredGen.GenerateLayeredProject()
+		if err != nil {
+			return "", fmt.Errorf("erro na geração em camadas: %v", err)
+		}
+
+		// Converter para formato padrão
+		scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
+
+		// Serializar a resposta
+		responseBytes, err := json.MarshalIndent(scaffoldResponse, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
+		}
+
+		response = string(responseBytes)
+	} else {
+		// Gerar conteúdo usando o provedor normalmente
+		fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
+		response, err = provider.GenerateContent(prompt)
+		if err != nil {
+			// Verificar se é erro de contexto e tentar geração em camadas
+			if IsContextOverflowError(err) {
+				fmt.Printf("❌ Erro de contexto detectado - tentando geração em camadas\n")
+
+				layeredGen, layerErr := NewLayeredGenerator(language, projectName, description, llmsContext)
+				if layerErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro ao criar gerador em camadas: %v", err, layerErr)
+				}
+
+				layeredResponse, layerErr := layeredGen.GenerateLayeredProject()
+				if layerErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro na geração em camadas: %v", err, layerErr)
+				}
+
+				// Converter para formato padrão
+				scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
+
+				// Serializar a resposta
+				responseBytes, marshalErr := json.MarshalIndent(scaffoldResponse, "", "  ")
+				if marshalErr != nil {
+					return "", fmt.Errorf("erro original: %v, erro ao serializar resposta em camadas: %v", err, marshalErr)
+				}
+
+				response = string(responseBytes)
+			} else {
+				return "", err
+			}
+		}
 	}
 
 	// Atualizar a resposta no contexto
@@ -232,6 +339,67 @@ func GenerateProjectScaffoldingWithProvider(language, projectName, description s
 	}
 
 	return response, nil
+}
+
+// TestLayeredGeneration executa testes do sistema de geração em camadas
+func TestLayeredGeneration() {
+	fmt.Printf("1️⃣ Testando detecção de overflow...\n")
+
+	// Criar um prompt muito grande
+	largePrompt := "Este é um prompt de teste "
+	for i := 0; i < 1000; i++ {
+		largePrompt += "muito grande com muitas palavras repetitivas para simular um contexto extenso "
+	}
+
+	isOverflow := DetectContextOverflow(largePrompt, "gpt")
+	if isOverflow {
+		fmt.Printf("✅ Detecção de overflow funcionando (prompt: %d chars, estimativa: %d tokens)\n",
+			len(largePrompt), estimateTokens(largePrompt))
+	} else {
+		fmt.Printf("❌ Falha na detecção de overflow (prompt: %d chars, estimativa: %d tokens)\n",
+			len(largePrompt), estimateTokens(largePrompt))
+	}
+
+	// Teste 2: Detecção de erro de contexto
+	fmt.Printf("\n2️⃣ Testando detecção de erros de contexto...\n")
+
+	testErrors := []string{
+		"This endpoint's maximum context length is 200000 tokens",
+		"API retornou status 400: token limit exceeded",
+		"context too long",
+		"input too long",
+		"reduce the length of either one",
+	}
+
+	for _, errMsg := range testErrors {
+		testErr := fmt.Errorf(errMsg)
+		if IsContextOverflowError(testErr) {
+			fmt.Printf("✅ Detectou erro de contexto: %s\n", errMsg[:min(50, len(errMsg))]+"}")
+		} else {
+			fmt.Printf("❌ Falha na detecção: %s\n", errMsg[:min(50, len(errMsg))]+"}")
+		}
+	}
+
+	// Teste 3: Criação do gerador em camadas
+	fmt.Printf("\n3️⃣ Testando criação do gerador em camadas...\n")
+
+	llmsContext := &LLMsContext{}
+	layeredGen, err := NewLayeredGenerator("go", "test-project", "Test project description", llmsContext)
+	if err != nil {
+		fmt.Printf("❌ Erro ao criar gerador: %v\n", err)
+	} else {
+		fmt.Printf("✅ Gerador em camadas criado com sucesso\n")
+		fmt.Printf("   Provider: %s\n", layeredGen.provider.Name())
+		fmt.Printf("   Max tokens: %d\n", layeredGen.maxTokens)
+	}
+}
+
+// min retorna o menor dos dois valores int
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Rest of the existing functions remain the same...
