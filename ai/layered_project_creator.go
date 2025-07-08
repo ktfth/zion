@@ -40,12 +40,20 @@ func CreateLayeredProject(projectName string, layeredResponse *LayeredResponse) 
 
 	// Criar arquivos por camada
 	totalFiles := 0
+	createdFiles := make(map[string]string) // mapa para rastrear arquivos criados: arquivo -> camada
+
 	for i, layer := range layeredResponse.Layers {
 		fmt.Printf("\n⚙️  Materializando camada %d/%d: %s\n", i+1, len(layeredResponse.Layers), layer.LayerName)
 
 		layerFileCount := 0
 		for filePath, content := range layer.Files {
 			fullPath := filepath.Join(projectDir, filePath)
+
+			// Verificar se o arquivo já foi criado por uma camada anterior
+			if existingLayer, exists := createdFiles[filePath]; exists {
+				fmt.Printf("   ⚠️  Arquivo %s já foi criado na camada '%s', pulando...\n", filePath, existingLayer)
+				continue
+			}
 
 			// Garantir que o diretório pai exista
 			parentDir := filepath.Dir(fullPath)
@@ -92,6 +100,9 @@ func CreateLayeredProject(projectName string, layeredResponse *LayeredResponse) 
 			if err := os.WriteFile(fullPath, contentBytes, 0644); err != nil {
 				return fmt.Errorf("erro ao criar arquivo %s: %v", filePath, err)
 			}
+
+			// Registrar o arquivo como criado
+			createdFiles[filePath] = layer.LayerName
 
 			fmt.Printf("   📄 %s (%d bytes)\n", filePath, len(contentBytes))
 			layerFileCount++

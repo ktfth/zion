@@ -273,26 +273,79 @@ func (lg *LayeredGenerator) generateLayer(plan LayerPlan, previousLayers []Layer
 func (lg *LayeredGenerator) buildLayerPrompt(plan LayerPlan, previousLayers []LayerResult) string {
 	var prompt strings.Builder
 
-	prompt.WriteString(fmt.Sprintf(`Gere especificamente a camada "%s" para o projeto:
+	prompt.WriteString(fmt.Sprintf(`Gere EXCLUSIVAMENTE a camada "%s" para o projeto:
 
 PROJETO: %s
 LINGUAGEM: %s
 DESCRIÇÃO GERAL: %s
 
-CAMADA ATUAL:
+CAMADA ATUAL - FOQUE APENAS NISTO:
 Nome: %s
 Descrição: %s
-Foco: %v
+Elementos desta camada: %v
 
-`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus))
+IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
+
+`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", ")))
 
 	// Adicionar contexto das camadas anteriores
 	if len(previousLayers) > 0 {
 		prompt.WriteString("CAMADAS JÁ CRIADAS:\n")
+		allCreatedFiles := make([]string, 0)
 		for _, layer := range previousLayers {
 			prompt.WriteString(fmt.Sprintf("- %s: %d arquivos\n", layer.LayerName, len(layer.Files)))
+			for fileName := range layer.Files {
+				allCreatedFiles = append(allCreatedFiles, fileName)
+			}
+		}
+
+		if len(allCreatedFiles) > 0 {
+			prompt.WriteString("\nARQUIVOS JÁ CRIADOS (NÃO RECRIAR):\n")
+			for _, fileName := range allCreatedFiles {
+				prompt.WriteString(fmt.Sprintf("- %s\n", fileName))
+			}
 		}
 		prompt.WriteString("\n")
+	}
+
+	// Adicionar instruções específicas por camada
+	switch plan.Name {
+	case "core":
+		prompt.WriteString(`CAMADA CORE - CRIE APENAS:
+- Arquivo principal (index.js, main.js, app.js)
+- package.json com dependências
+- Configurações básicas (.env.example, config files)
+- Estrutura de diretórios básica
+NÃO crie testes, rotas específicas ou lógica de negócio
+
+`)
+	case "business":
+		prompt.WriteString(`CAMADA BUSINESS - CRIE APENAS:
+- Modelos de dados (models/)
+- Serviços de negócio (services/)
+- Utilitários (utils/)
+- Middleware de negócio
+NÃO crie testes, rotas HTTP ou configurações
+
+`)
+	case "api":
+		prompt.WriteString(`CAMADA API - CRIE APENAS:
+- Controladores (controllers/)
+- Rotas HTTP (routes/)
+- Middleware de API
+- Validadores de entrada
+NÃO crie testes, modelos ou configurações
+
+`)
+	case "tests":
+		prompt.WriteString(`CAMADA TESTS - CRIE APENAS:
+- Arquivos de teste (.test.js, .spec.js)
+- Configuração de testes
+- Mocks e fixtures
+- Scripts de teste
+NÃO crie código de produção
+
+`)
 	}
 
 	// Adicionar contexto limitado do projeto
@@ -319,11 +372,13 @@ Foco: %v
 }
 
 INSTRUÇÕES:
-1. Foque APENAS nos elementos desta camada
-2. NÃO recrie arquivos de camadas anteriores
-3. Use conteúdo realista e funcional
-4. Mantenha coerência com o projeto
-5. Retorne apenas JSON válido`)
+1. Foque APENAS nos elementos desta camada especificados acima
+2. NÃO recrie NENHUM arquivo listado como "JÁ CRIADOS"
+3. Se um arquivo já existe, NÃO o inclua nesta camada
+4. Crie apenas arquivos novos específicos desta camada
+5. Use conteúdo realista e funcional
+6. Mantenha coerência com o projeto
+7. Retorne apenas JSON válido`)
 
 	return prompt.String()
 }

@@ -132,11 +132,8 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 					return "", fmt.Errorf("erro original: %v, erro na geração em camadas: %v", err, layerErr)
 				}
 
-				// Converter para formato padrão
-				scaffoldResponse := layeredGen.ConvertToScaffoldResponse(layeredResponse)
-
-				// Serializar a resposta
-				responseBytes, marshalErr := json.MarshalIndent(scaffoldResponse, "", "  ")
+				// Serializar a resposta em camadas diretamente
+				responseBytes, marshalErr := json.MarshalIndent(layeredResponse, "", "  ")
 				if marshalErr != nil {
 					return "", fmt.Errorf("erro original: %v, erro ao serializar resposta em camadas: %v", err, marshalErr)
 				}
