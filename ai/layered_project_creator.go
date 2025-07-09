@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // CreateLayeredProject cria a estrutura do projeto baseada na resposta em camadas
@@ -161,6 +162,47 @@ func CreateLayeredProject(projectName string, layeredResponse *LayeredResponse) 
 	fmt.Printf("🏗️  Camadas: %d\n", len(layeredResponse.Layers))
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
+	// Sempre gerar ou melhorar o README.md com instruções reais
+	fmt.Println("📋 Gerando README.md com instruções reais...")
+	readmeContent := generateReadmeContentForLayered(projectName, layeredResponse)
+
+	// Verificar se já existe um README.md
+	readmePath := filepath.Join(projectDir, "README.md")
+	hasExistingReadme := false
+
+	// Verificar se README.md foi criado em alguma camada
+	for _, layer := range layeredResponse.Layers {
+		if _, exists := layer.Files["README.md"]; exists {
+			hasExistingReadme = true
+			break
+		}
+	}
+
+	if !hasExistingReadme {
+		// Criar novo README.md
+		if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+			fmt.Printf("⚠️  Erro ao criar README.md: %v\n", err)
+		} else {
+			fmt.Printf("✅ README.md criado com instruções detalhadas\n")
+		}
+	} else {
+		// Verificar se o README existente é básico demais
+		if existingContent, err := os.ReadFile(readmePath); err == nil {
+			existingReadme := string(existingContent)
+
+			// Verificar se o README existente é muito básico
+			if len(strings.TrimSpace(existingReadme)) < 200 || (!strings.Contains(existingReadme, "##") && !strings.Contains(existingReadme, "Instalação") && !strings.Contains(existingReadme, "Como Executar")) {
+				if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+					fmt.Printf("⚠️  Erro ao melhorar README.md: %v\n", err)
+				} else {
+					fmt.Printf("✅ README.md melhorado com instruções detalhadas\n")
+				}
+			} else {
+				fmt.Printf("ℹ️  README.md já contém instruções adequadas\n")
+			}
+		}
+	}
+
 	// Criar um arquivo de resumo das camadas
 	summaryPath := filepath.Join(projectDir, "ZION_LAYERS_SUMMARY.md")
 	summaryContent := generateLayersSummary(layeredResponse)
@@ -171,6 +213,95 @@ func CreateLayeredProject(projectName string, layeredResponse *LayeredResponse) 
 	}
 
 	return nil
+}
+
+// generateReadmeContentForLayered gera conteúdo do README.md para projetos em camadas
+func generateReadmeContentForLayered(projectName string, layeredResponse *LayeredResponse) string {
+	language := layeredResponse.ProjectInfo.Language
+	description := layeredResponse.ProjectInfo.Description
+
+	// Coletar todos os arquivos de todas as camadas
+	allFiles := make(map[string]interface{})
+	allDirs := make(map[string]bool)
+
+	for _, layer := range layeredResponse.Layers {
+		for filePath, content := range layer.Files {
+			allFiles[filePath] = content
+		}
+		for _, dir := range layer.Directories {
+			allDirs[dir] = true
+		}
+	}
+
+	// Converter para lista de diretórios
+	var directories []string
+	for dir := range allDirs {
+		directories = append(directories, dir)
+	}
+
+	// Criar estrutura scaffoldResp temporária para reusar as funções existentes
+	scaffoldResp := &ScaffoldResponse{
+		Structure: struct {
+			Directories []string               `json:"directories"`
+			Files       map[string]interface{} `json:"files"`
+		}{
+			Directories: directories,
+			Files:       allFiles,
+		},
+	}
+
+	// Detectar tipo de projeto baseado nos arquivos
+	projectType := detectProjectTypeFromFiles(scaffoldResp)
+
+	// Gerar conteúdo do README
+	readme := fmt.Sprintf(`# %s
+
+## Descrição
+
+%s
+
+Este projeto foi gerado usando o Zion CLI com sistema de camadas e contém uma estrutura %s para %s.
+
+## Estrutura do Projeto
+
+`, projectName, description, projectType, language)
+
+	// Adicionar informações sobre diretórios
+	if len(directories) > 0 {
+		readme += "### Diretórios\n\n"
+		for _, dir := range directories {
+			readme += fmt.Sprintf("- `%s/` - %s\n", dir, getDirectoryDescription(dir, language))
+		}
+		readme += "\n"
+	}
+
+	// Adicionar informações sobre arquivos importantes
+	readme += "### Arquivos Principais\n\n"
+	for filePath := range allFiles {
+		if isImportantFile(filePath) {
+			readme += fmt.Sprintf("- `%s` - %s\n", filePath, getFileDescription(filePath, language))
+		}
+	}
+
+	// Adicionar informações sobre camadas
+	readme += "### Camadas do Projeto\n\n"
+	readme += "Este projeto foi gerado usando o sistema de camadas do Zion AI:\n\n"
+
+	for i, layer := range layeredResponse.Layers {
+		readme += fmt.Sprintf("%d. **%s** - %s\n", i+1, layer.LayerName, layer.Description)
+	}
+	readme += "\n"
+
+	// Adicionar instruções de instalação/configuração
+	readme += generateInstallationInstructions(language, scaffoldResp)
+
+	// Adicionar instruções de execução
+	readme += generateRunInstructions(language, scaffoldResp)
+
+	// Adicionar próximos passos
+	readme += generateNextSteps(language, scaffoldResp)
+
+	return readme
 }
 
 // generateLayersSummary gera um resumo em markdown das camadas criadas

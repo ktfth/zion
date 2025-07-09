@@ -511,7 +511,91 @@ func mergeWithExistingProject(scaffoldData ScaffoldResponse, ctx *LLMsContext) e
 		}
 	}
 
+	// Sempre gerar ou melhorar o README.md com instruções reais
+	fmt.Println("📋 Verificando e melhorando README.md...")
+	readmeContent := generateReadmeContentForContextual(projectRoot, &scaffoldData, ctx)
+	readmePath := filepath.Join(projectRoot, "README.md")
+
+	// Verificar se há um README existente
+	if existingContent, err := os.ReadFile(readmePath); err == nil {
+		existingReadme := string(existingContent)
+
+		// Verificar se o README existente é muito básico
+		if len(strings.TrimSpace(existingReadme)) < 200 || (!strings.Contains(existingReadme, "##") && !strings.Contains(existingReadme, "Instalação") && !strings.Contains(existingReadme, "Como Executar")) {
+			if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+				fmt.Printf("⚠️  Erro ao melhorar README.md: %v\n", err)
+			} else {
+				fmt.Printf("✅ README.md melhorado com instruções detalhadas\n")
+			}
+		} else {
+			fmt.Printf("ℹ️  README.md já contém instruções adequadas\n")
+		}
+	} else {
+		// Criar novo README.md
+		if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+			fmt.Printf("⚠️  Erro ao criar README.md: %v\n", err)
+		} else {
+			fmt.Printf("✅ README.md criado com instruções detalhadas\n")
+		}
+	}
+
 	return nil
+}
+
+// generateReadmeContentForContextual gera conteúdo do README.md para projetos contextuais
+func generateReadmeContentForContextual(projectRoot string, scaffoldData *ScaffoldResponse, ctx *LLMsContext) string {
+	projectName := filepath.Base(projectRoot)
+	language := ctx.DetectProjectLanguage()
+
+	// Usar descrição do contexto se disponível
+	description := ctx.GetProjectDescription()
+	if description == "" {
+		description = fmt.Sprintf("Projeto %s gerado contextualmente", language)
+	}
+
+	// Detectar tipo de projeto
+	projectType := detectProjectTypeFromFiles(scaffoldData)
+
+	// Gerar conteúdo do README
+	readme := fmt.Sprintf(`# %s
+
+## Descrição
+
+%s
+
+Este projeto foi gerado usando o Zion CLI no modo contextual e contém uma estrutura %s para %s.
+
+## Estrutura do Projeto
+
+`, projectName, description, projectType, language)
+
+	// Adicionar informações sobre diretórios
+	if len(scaffoldData.Structure.Directories) > 0 {
+		readme += "### Diretórios\n\n"
+		for _, dir := range scaffoldData.Structure.Directories {
+			readme += fmt.Sprintf("- `%s/` - %s\n", dir, getDirectoryDescription(dir, language))
+		}
+		readme += "\n"
+	}
+
+	// Adicionar informações sobre arquivos importantes
+	readme += "### Arquivos Principais\n\n"
+	for filePath := range scaffoldData.Structure.Files {
+		if isImportantFile(filePath) {
+			readme += fmt.Sprintf("- `%s` - %s\n", filePath, getFileDescription(filePath, language))
+		}
+	}
+
+	// Adicionar instruções de instalação/configuração
+	readme += generateInstallationInstructions(language, scaffoldData)
+
+	// Adicionar instruções de execução
+	readme += generateRunInstructions(language, scaffoldData)
+
+	// Adicionar próximos passos
+	readme += generateNextSteps(language, scaffoldData)
+
+	return readme
 }
 
 // decideFileAction decide que ação tomar com um arquivo existente
