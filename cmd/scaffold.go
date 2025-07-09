@@ -265,13 +265,8 @@ Exemplos:
 				fmt.Printf("\n🔄 Tentativa de criação %d/%d...", createAttempt, maxRetries)
 			}
 
-			// Usar criação contextual se estamos em modo contextual (com ou sem llms.txt)
-			if isContextualMode {
-				err = ai.CreateContextualProject(projectName, response, llmsContext)
-			} else {
-				// Tentar primeiro o método que suporta camadas
-				err = ai.ExtractAndCreateLayeredProject(projectName, response)
-			}
+			// Usar sistema unificado de criação de projetos
+			err = ai.CreateProjectWithUnifiedStrategy(projectName, response, llmsContext, isContextualMode)
 
 			if err == nil {
 				break

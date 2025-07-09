@@ -91,58 +91,10 @@ func GenerateProjectScaffolding(language, projectName, description string, regis
 	// Declarar variável de resposta
 	var response string
 
-	// Verificar se há risco de overflow de contexto antes de gerar
-	if DetectContextOverflow(prompt, provider.Name()) {
-		fmt.Printf("⚠️  Contexto muito grande detectado - usando geração em camadas\n")
-
-		// Usar gerador em camadas
-		layeredGen, err := NewLayeredGenerator(language, projectName, description, llmsContext)
-		if err != nil {
-			return "", fmt.Errorf("erro ao criar gerador em camadas: %v", err)
-		}
-
-		layeredResponse, err := layeredGen.GenerateLayeredProject()
-		if err != nil {
-			return "", fmt.Errorf("erro na geração em camadas: %v", err)
-		}
-
-		// Serializar a resposta em camadas diretamente
-		responseBytes, err := json.MarshalIndent(layeredResponse, "", "  ")
-		if err != nil {
-			return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
-		}
-
-		response = string(responseBytes)
-	} else {
-		// Gerar conteúdo usando o provedor normalmente
-		fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
-		response, err = provider.GenerateContent(prompt)
-		if err != nil {
-			// Verificar se é erro de contexto e tentar geração em camadas
-			if IsContextOverflowError(err) {
-				fmt.Printf("❌ Erro de contexto detectado - tentando geração em camadas\n")
-
-				layeredGen, layerErr := NewLayeredGenerator(language, projectName, description, llmsContext)
-				if layerErr != nil {
-					return "", fmt.Errorf("erro original: %v, erro ao criar gerador em camadas: %v", err, layerErr)
-				}
-
-				layeredResponse, layerErr := layeredGen.GenerateLayeredProject()
-				if layerErr != nil {
-					return "", fmt.Errorf("erro original: %v, erro na geração em camadas: %v", err, layerErr)
-				}
-
-				// Serializar a resposta em camadas diretamente
-				responseBytes, marshalErr := json.MarshalIndent(layeredResponse, "", "  ")
-				if marshalErr != nil {
-					return "", fmt.Errorf("erro original: %v, erro ao serializar resposta em camadas: %v", err, marshalErr)
-				}
-
-				response = string(responseBytes)
-			} else {
-				return "", err
-			}
-		}
+	// Usar uma estratégia unificada de geração
+	response, err = generateWithUnifiedStrategy(provider, prompt, language, projectName, description, llmsContext)
+	if err != nil {
+		return "", err
 	}
 
 	// Atualizar a resposta no contexto
@@ -638,6 +590,32 @@ func processScaffoldResponse(response string) (string, error) {
 		return "", fmt.Errorf("erro ao gerar JSON final: %v", err)
 	}
 
+	// Validar a estrutura resultante
+	validation := ValidateProjectStructure(string(result), "")
+	if !validation.IsValid {
+		fmt.Printf("⚠️  Estrutura do projeto apresenta problemas:\n")
+		for _, issue := range validation.Issues {
+			fmt.Printf("   • %s\n", issue)
+		}
+		fmt.Printf("📊 Pontuação de qualidade: %.1f/100\n", validation.Score)
+
+		// Se o score for muito baixo, falhar
+		if validation.Score < 30 {
+			return "", fmt.Errorf("projeto não passou na validação após processamento (score: %.1f/100)", validation.Score)
+		}
+
+		// Caso contrário, mostrar avisos mas continuar
+		fmt.Printf("⚠️  Continuando com avisos...\n")
+	} else {
+		fmt.Printf("✅ Estrutura processada e validada com sucesso (score: %.1f/100)\n", validation.Score)
+		if len(validation.Suggestions) > 0 {
+			fmt.Printf("💡 Sugestões de melhoria:\n")
+			for _, suggestion := range validation.Suggestions {
+				fmt.Printf("   • %s\n", suggestion)
+			}
+		}
+	}
+
 	return string(result), nil
 }
 
@@ -1003,4 +981,101 @@ VALIDAÇÃO:
 - Inclua pelo menos 5-8 arquivos essenciais
 - Inclua pelo menos 3-5 diretórios organizados
 - Conteúdo dos arquivos deve ser funcional e não apenas placeholder`, basePrompt, jsonInstructions, languageExamples, language)
+}
+
+// generateWithUnifiedStrategy implementa uma estratégia unificada de geração
+func generateWithUnifiedStrategy(provider providers.Provider, prompt, language, projectName, description string, llmsContext *LLMsContext) (string, error) {
+	// Estratégia 1: Tentar geração normal primeiro
+	fmt.Printf("🤖 Usando provedor de IA: %s\n", provider.Name())
+
+	// Verificar se o prompt é muito grande
+	if EstimateTokens(prompt) > determineMaxTokens(provider.Name()) {
+		fmt.Printf("⚠️  Contexto muito grande detectado - usando geração em camadas\n")
+		return generateWithLayeredStrategy(provider, language, projectName, description, llmsContext)
+	}
+
+	// Tentar geração normal
+	response, err := provider.GenerateContent(prompt)
+	if err != nil {
+		// Se é erro de contexto, tentar camadas
+		if IsContextOverflowError(err) {
+			fmt.Printf("❌ Erro de contexto detectado - tentando geração em camadas\n")
+			return generateWithLayeredStrategy(provider, language, projectName, description, llmsContext)
+		}
+		return "", err
+	}
+
+	return response, nil
+}
+
+// generateWithLayeredStrategy gera usando o sistema de camadas
+func generateWithLayeredStrategy(provider providers.Provider, language, projectName, description string, llmsContext *LLMsContext) (string, error) {
+	layeredGen, err := NewLayeredGenerator(language, projectName, description, llmsContext)
+	if err != nil {
+		return "", fmt.Errorf("erro ao criar gerador em camadas: %v", err)
+	}
+
+	layeredResponse, err := layeredGen.GenerateLayeredProject()
+	if err != nil {
+		return "", fmt.Errorf("erro na geração em camadas: %v", err)
+	}
+
+	// Serializar a resposta em camadas
+	responseBytes, err := json.MarshalIndent(layeredResponse, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("erro ao serializar resposta em camadas: %v", err)
+	}
+
+	return string(responseBytes), nil
+}
+
+// CreateProjectWithUnifiedStrategy usa uma estratégia unificada para criar projetos
+func CreateProjectWithUnifiedStrategy(projectName, response string, llmsContext *LLMsContext, isContextualMode bool) error {
+	// Detectar linguagem para validação
+	language := ""
+	if llmsContext != nil {
+		language = llmsContext.DetectProjectLanguage()
+	}
+
+	// Validar estrutura antes de criar o projeto
+	validation := ValidateProjectStructure(response, language)
+	if !validation.IsValid {
+		fmt.Printf("⚠️  Estrutura do projeto apresenta problemas:\n")
+		for _, issue := range validation.Issues {
+			fmt.Printf("   • %s\n", issue)
+		}
+		fmt.Printf("📊 Pontuação de qualidade: %.1f/100\n", validation.Score)
+
+		// Se o score for muito baixo, falhar
+		if validation.Score < 50 {
+			return fmt.Errorf("projeto não passou na validação (score: %.1f/100)", validation.Score)
+		}
+
+		// Caso contrário, mostrar avisos mas continuar
+		fmt.Printf("⚠️  Continuando com avisos...\n")
+	} else {
+		fmt.Printf("✅ Estrutura validada com sucesso (score: %.1f/100)\n", validation.Score)
+		if len(validation.Suggestions) > 0 {
+			fmt.Printf("💡 Sugestões de melhoria:\n")
+			for _, suggestion := range validation.Suggestions {
+				fmt.Printf("   • %s\n", suggestion)
+			}
+		}
+	}
+
+	// Determinar se é resposta em camadas analisando a estrutura JSON
+	var layeredResponse LayeredResponse
+	if json.Unmarshal([]byte(response), &layeredResponse) == nil && len(layeredResponse.Layers) > 0 {
+		// É resposta em camadas - usar criação em camadas
+		return CreateLayeredProject(projectName, &layeredResponse)
+	}
+
+	// Resposta tradicional
+	if isContextualMode && llmsContext != nil && llmsContext.HasLLMsFile {
+		// Modo contextual com llms.txt - usar criação contextual
+		return CreateContextualProject(projectName, response, llmsContext)
+	}
+
+	// Modo normal - usar criação padrão
+	return ExtractAndCreateProject(projectName, response)
 }

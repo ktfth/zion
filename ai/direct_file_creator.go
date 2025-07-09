@@ -17,6 +17,32 @@ func ExtractAndCreateProject(projectName string, jsonStr string) error {
 		jsonStr = strings.TrimSuffix(jsonStr, "\n```")
 	}
 
+	// Validar estrutura antes de processar
+	validation := ValidateProjectStructure(jsonStr, "")
+	if !validation.IsValid {
+		fmt.Printf("⚠️  Estrutura do projeto apresenta problemas:\n")
+		for _, issue := range validation.Issues {
+			fmt.Printf("   • %s\n", issue)
+		}
+		fmt.Printf("📊 Pontuação de qualidade: %.1f/100\n", validation.Score)
+
+		// Se o score for muito baixo, falhar
+		if validation.Score < 50 {
+			return fmt.Errorf("projeto não passou na validação (score: %.1f/100)", validation.Score)
+		}
+
+		// Caso contrário, mostrar avisos mas continuar
+		fmt.Printf("⚠️  Continuando com avisos...\n")
+	} else {
+		fmt.Printf("✅ Estrutura validada com sucesso (score: %.1f/100)\n", validation.Score)
+		if len(validation.Suggestions) > 0 {
+			fmt.Printf("💡 Sugestões de melhoria:\n")
+			for _, suggestion := range validation.Suggestions {
+				fmt.Printf("   • %s\n", suggestion)
+			}
+		}
+	}
+
 	var scaffoldResp ScaffoldResponse
 	err := json.Unmarshal([]byte(jsonStr), &scaffoldResp)
 	if err != nil {

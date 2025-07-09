@@ -68,15 +68,15 @@ func NewLayeredGenerator(language, projectName, description string, llmsContext 
 func determineMaxTokens(providerName string) int {
 	switch strings.ToLower(providerName) {
 	case "openrouter":
-		return 150000 // 75% do limite de 200k
+		return 120000 // Mais conservador para OpenRouter
 	case "gpt":
-		return 100000 // Conservador para GPT-4
+		return 80000 // Mais conservador para GPT-4
 	case "claude":
-		return 150000 // Claude tem bom suporte a contexto longo
+		return 120000 // Mais conservador para Claude
 	case "gemini":
-		return 180000 // Gemini 2.0 tem contexto extenso
+		return 150000 // Mais conservador para Gemini
 	default:
-		return 50000 // Valor conservador para providers desconhecidos
+		return 40000 // Muito conservador para providers desconhecidos
 	}
 }
 
@@ -87,9 +87,24 @@ func EstimateTokens(text string) int {
 
 // estimateTokens estima aproximadamente o número de tokens em um texto
 func estimateTokens(text string) int {
-	// Estimativa grosseira: ~4 caracteres por token
-	// Inclui overhead para formatação JSON e instruções
-	return (len(text) / 3) + 5000
+	// Estimativa mais precisa baseada em:
+	// - Contagem de caracteres
+	// - Formatação JSON
+	// - Overhead de instruções
+
+	charCount := len(text)
+
+	// Aproximação: 1 token ≈ 4 caracteres para texto normal
+	// Mais overhead para JSON e instruções
+	baseTokens := charCount / 4
+
+	// Adicionar overhead para formatação JSON e estruturas
+	jsonOverhead := strings.Count(text, "{") + strings.Count(text, "}") + strings.Count(text, "[") + strings.Count(text, "]")
+
+	// Adicionar overhead para instruções e prompts
+	instructionOverhead := 3000
+
+	return baseTokens + jsonOverhead*10 + instructionOverhead
 }
 
 // GenerateLayeredProject gera o projeto em camadas para evitar overflow de contexto
@@ -406,6 +421,32 @@ Apenas arquivos essenciais da camada.`, plan.Name, lg.projectName, lg.language, 
 // parseLayerResponse processa a resposta de uma camada
 func (lg *LayeredGenerator) parseLayerResponse(layerName, response string) (*LayerResult, error) {
 	jsonContent := extractJSONContent(response)
+
+	// Validar a estrutura da camada
+	validation := ValidateProjectStructure(jsonContent, lg.language)
+	if !validation.IsValid {
+		fmt.Printf("⚠️  Camada %s apresenta problemas:\n", layerName)
+		for _, issue := range validation.Issues {
+			fmt.Printf("   • %s\n", issue)
+		}
+		fmt.Printf("📊 Pontuação de qualidade: %.1f/100\n", validation.Score)
+
+		// Se o score for muito baixo, falhar
+		if validation.Score < 40 {
+			return nil, fmt.Errorf("camada %s não passou na validação (score: %.1f/100)", layerName, validation.Score)
+		}
+
+		// Caso contrário, mostrar avisos mas continuar
+		fmt.Printf("⚠️  Continuando com avisos...\n")
+	} else {
+		fmt.Printf("✅ Camada %s validada com sucesso (score: %.1f/100)\n", layerName, validation.Score)
+		if len(validation.Suggestions) > 0 {
+			fmt.Printf("💡 Sugestões de melhoria para camada %s:\n", layerName)
+			for _, suggestion := range validation.Suggestions {
+				fmt.Printf("   • %s\n", suggestion)
+			}
+		}
+	}
 
 	var layerResult LayerResult
 	if err := json.Unmarshal([]byte(jsonContent), &layerResult); err != nil {
