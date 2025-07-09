@@ -13,13 +13,14 @@ import (
 
 // LayeredGenerator gerencia a geração de projetos por camadas para contextos grandes
 type LayeredGenerator struct {
-	provider     providers.Provider
-	maxTokens    int
-	language     string
-	projectName  string
-	description  string
-	llmsContext  *LLMsContext
-	outputLayers []LayerResult
+	provider              providers.Provider
+	maxTokens             int
+	language              string
+	projectName           string
+	description           string
+	llmsContext           *LLMsContext
+	outputLayers          []LayerResult
+	instructionController *AdaptiveInstructionController
 }
 
 // LayerResult representa o resultado de uma camada de geração
@@ -53,14 +54,18 @@ func NewLayeredGenerator(language, projectName, description string, llmsContext 
 	// Determinar limite de tokens baseado no provider
 	maxTokens := determineMaxTokens(provider.Name())
 
+	// Criar controlador adaptativo de instruções
+	instructionController := NewAdaptiveInstructionController(detectProjectType(description), language, description)
+
 	return &LayeredGenerator{
-		provider:     provider,
-		maxTokens:    maxTokens,
-		language:     language,
-		projectName:  projectName,
-		description:  description,
-		llmsContext:  llmsContext,
-		outputLayers: make([]LayerResult, 0),
+		provider:              provider,
+		maxTokens:             maxTokens,
+		language:              language,
+		projectName:           projectName,
+		description:           description,
+		llmsContext:           llmsContext,
+		outputLayers:          make([]LayerResult, 0),
+		instructionController: instructionController,
 	}, nil
 }
 
@@ -156,11 +161,14 @@ type LayerPlan struct {
 
 // planLayers determina quais camadas criar baseado no projeto
 func (lg *LayeredGenerator) planLayers() ([]LayerPlan, error) {
+	// Construir prompt adaptativo usando o controlador de instruções
 	basePrompt := fmt.Sprintf(`Analise este projeto e determine as camadas de desenvolvimento necessárias:
 
 PROJETO: %s
 LINGUAGEM: %s
 DESCRIÇÃO: %s
+
+IMPORTANTE: Siga rigorosamente as instruções de escopo e restrições especificadas.
 
 Retorne um JSON com as camadas em ordem de prioridade:
 {
@@ -174,11 +182,15 @@ Retorne um JSON com as camadas em ordem de prioridade:
   ]
 }
 
-REGRAS:
+REGRAS DE PLANEJAMENTO:
 - Máximo 6 camadas
 - Cada camada deve ter foco específico (core, config, api, frontend, tests, docs)
 - Prioridade 1 = mais importante
-- Focus deve listar os elementos principais da camada`, lg.projectName, lg.language, lg.description)
+- Focus deve listar os elementos principais da camada
+- Adapte as camadas ao propósito específico do projeto`, lg.projectName, lg.language, lg.description)
+
+	// Aplicar controle adaptativo de instruções
+	adaptivePrompt := lg.instructionController.BuildAdaptivePrompt(basePrompt)
 
 	// Adicionar contexto se disponível, mas limitado
 	if lg.llmsContext != nil && lg.llmsContext.HasLLMsFile {
@@ -186,12 +198,28 @@ REGRAS:
 		if len(contextSummary) > 1000 {
 			contextSummary = contextSummary[:1000] + "... (resumido)"
 		}
-		basePrompt += fmt.Sprintf("\n\nCONTEXTO ADICIONAL:\n%s", contextSummary)
+		adaptivePrompt += fmt.Sprintf("\n\nCONTEXTO ADICIONAL:\n%s", contextSummary)
 	}
 
-	response, err := lg.provider.GenerateContent(basePrompt)
+	response, err := lg.provider.GenerateContent(adaptivePrompt)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validar conformidade com as instruções
+	compliance, err := lg.instructionController.ValidateInstructionCompliance(response)
+	if err != nil {
+		fmt.Printf("⚠️  Erro ao validar conformidade: %v\n", err)
+	} else if !compliance.IsCompliant {
+		fmt.Printf("⚠️  Planejamento não conforme (score: %.1f%%):\n", compliance.ComplianceScore)
+		for _, violation := range compliance.ViolatedRules {
+			fmt.Printf("   • Violação: %s\n", violation)
+		}
+		for _, missing := range compliance.MissingRequirements {
+			fmt.Printf("   • Faltando: %s\n", missing)
+		}
+	} else {
+		fmt.Printf("✅ Planejamento conforme (score: %.1f%%)\n", compliance.ComplianceScore)
 	}
 
 	// Extrair JSON da resposta
@@ -203,7 +231,7 @@ REGRAS:
 
 	if err := json.Unmarshal([]byte(jsonContent), &planResponse); err != nil {
 		// Fallback para camadas padrão se o parsing falhar
-		return lg.getDefaultLayers(), nil
+		return lg.getDefaultLayersWithAdaptation(), nil
 	}
 
 	// Ordenar por prioridade
@@ -212,14 +240,17 @@ REGRAS:
 	})
 
 	if len(planResponse.Layers) == 0 {
-		return lg.getDefaultLayers(), nil
+		return lg.getDefaultLayersWithAdaptation(), nil
 	}
 
 	return planResponse.Layers, nil
 }
 
-// getDefaultLayers retorna camadas padrão caso o planejamento automático falhe
-func (lg *LayeredGenerator) getDefaultLayers() []LayerPlan {
+// getDefaultLayersWithAdaptation retorna camadas padrão adaptadas ao contexto
+func (lg *LayeredGenerator) getDefaultLayersWithAdaptation() []LayerPlan {
+	profile := lg.instructionController.GetInstructionProfile()
+
+	// Camadas base
 	defaultLayers := []LayerPlan{
 		{
 			Name:        "core",
@@ -227,39 +258,83 @@ func (lg *LayeredGenerator) getDefaultLayers() []LayerPlan {
 			Priority:    1,
 			Focus:       []string{"main", "config", "package"},
 		},
-		{
+	}
+
+	// Adaptar camadas com base no perfil de instruções
+	if profile.ScopeControl != "minimal" {
+		defaultLayers = append(defaultLayers, LayerPlan{
 			Name:        "business",
 			Description: "Lógica de negócio e modelos",
 			Priority:    2,
 			Focus:       []string{"models", "services", "utils"},
-		},
-		{
+		})
+	}
+
+	// Adicionar camadas baseadas em adaptações específicas
+	if lg.instructionController.Adaptations["include_api"] == true {
+		defaultLayers = append(defaultLayers, LayerPlan{
 			Name:        "api",
 			Description: "Endpoints e controladores",
 			Priority:    3,
 			Focus:       []string{"controllers", "routes", "middleware"},
-		},
-		{
-			Name:        "tests",
-			Description: "Testes unitários e de integração",
-			Priority:    4,
-			Focus:       []string{"tests", "mocks", "fixtures"},
-		},
+		})
 	}
 
-	// Adaptar para linguagens específicas
-	switch strings.ToLower(lg.language) {
-	case "javascript", "typescript":
+	if lg.instructionController.Adaptations["include_frontend"] == true {
 		defaultLayers = append(defaultLayers, LayerPlan{
 			Name:        "frontend",
 			Description: "Componentes de interface e assets",
 			Priority:    3,
 			Focus:       []string{"components", "pages", "styles"},
 		})
-	case "go":
-		defaultLayers[1].Focus = append(defaultLayers[1].Focus, "handlers", "internal")
-	case "python":
-		defaultLayers[1].Focus = append(defaultLayers[1].Focus, "modules", "packages")
+	}
+
+	if lg.instructionController.Adaptations["include_tests"] == true {
+		defaultLayers = append(defaultLayers, LayerPlan{
+			Name:        "tests",
+			Description: "Testes unitários e de integração",
+			Priority:    4,
+			Focus:       []string{"tests", "mocks", "fixtures"},
+		})
+	}
+
+	if lg.instructionController.Adaptations["include_docker"] == true {
+		defaultLayers = append(defaultLayers, LayerPlan{
+			Name:        "deployment",
+			Description: "Configuração de deploy e containerização",
+			Priority:    5,
+			Focus:       []string{"docker", "ci-cd", "deployment"},
+		})
+	}
+
+	// Adaptar para linguagens específicas apenas se não for escopo mínimo
+	if profile.ScopeControl != "minimal" {
+		switch strings.ToLower(lg.language) {
+		case "javascript", "typescript":
+			// Adicionar camada frontend apenas se não foi explicitamente incluída
+			if lg.instructionController.Adaptations["include_frontend"] != true {
+				defaultLayers = append(defaultLayers, LayerPlan{
+					Name:        "frontend",
+					Description: "Componentes de interface e assets",
+					Priority:    3,
+					Focus:       []string{"components", "pages", "styles"},
+				})
+			}
+		case "go":
+			// Adaptar foco para Go
+			for i := range defaultLayers {
+				if defaultLayers[i].Name == "business" {
+					defaultLayers[i].Focus = append(defaultLayers[i].Focus, "handlers", "internal")
+				}
+			}
+		case "python":
+			// Adaptar foco para Python
+			for i := range defaultLayers {
+				if defaultLayers[i].Name == "business" {
+					defaultLayers[i].Focus = append(defaultLayers[i].Focus, "modules", "packages")
+				}
+			}
+		}
 	}
 
 	return defaultLayers
@@ -288,7 +363,8 @@ func (lg *LayeredGenerator) generateLayer(plan LayerPlan, previousLayers []Layer
 func (lg *LayeredGenerator) buildLayerPrompt(plan LayerPlan, previousLayers []LayerResult) string {
 	var prompt strings.Builder
 
-	prompt.WriteString(fmt.Sprintf(`Gere EXCLUSIVAMENTE a camada "%s" para o projeto:
+	// Prompt base para a camada
+	basePrompt := fmt.Sprintf(`Gere EXCLUSIVAMENTE a camada "%s" para o projeto:
 
 PROJETO: %s
 LINGUAGEM: %s
@@ -301,11 +377,15 @@ Elementos desta camada: %v
 
 IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
 
-`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", ")))
+`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", "))
+
+	// Aplicar controle adaptativo de instruções
+	adaptivePrompt := lg.instructionController.BuildAdaptivePrompt(basePrompt)
+	prompt.WriteString(adaptivePrompt)
 
 	// Adicionar contexto das camadas anteriores
 	if len(previousLayers) > 0 {
-		prompt.WriteString("CAMADAS JÁ CRIADAS:\n")
+		prompt.WriteString("\nCAMADAS JÁ CRIADAS:\n")
 		allCreatedFiles := make([]string, 0)
 		for _, layer := range previousLayers {
 			prompt.WriteString(fmt.Sprintf("- %s: %d arquivos\n", layer.LayerName, len(layer.Files)))
@@ -323,45 +403,9 @@ IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
 		prompt.WriteString("\n")
 	}
 
-	// Adicionar instruções específicas por camada
-	switch plan.Name {
-	case "core":
-		prompt.WriteString(`CAMADA CORE - CRIE APENAS:
-- Arquivo principal (index.js, main.js, app.js)
-- package.json com dependências
-- Configurações básicas (.env.example, config files)
-- Estrutura de diretórios básica
-NÃO crie testes, rotas específicas ou lógica de negócio
-
-`)
-	case "business":
-		prompt.WriteString(`CAMADA BUSINESS - CRIE APENAS:
-- Modelos de dados (models/)
-- Serviços de negócio (services/)
-- Utilitários (utils/)
-- Middleware de negócio
-NÃO crie testes, rotas HTTP ou configurações
-
-`)
-	case "api":
-		prompt.WriteString(`CAMADA API - CRIE APENAS:
-- Controladores (controllers/)
-- Rotas HTTP (routes/)
-- Middleware de API
-- Validadores de entrada
-NÃO crie testes, modelos ou configurações
-
-`)
-	case "tests":
-		prompt.WriteString(`CAMADA TESTS - CRIE APENAS:
-- Arquivos de teste (.test.js, .spec.js)
-- Configuração de testes
-- Mocks e fixtures
-- Scripts de teste
-NÃO crie código de produção
-
-`)
-	}
+	// Adicionar instruções específicas por camada adaptadas ao contexto
+	profile := lg.instructionController.GetInstructionProfile()
+	prompt.WriteString(lg.buildLayerSpecificInstructions(plan, profile))
 
 	// Adicionar contexto limitado do projeto
 	if lg.llmsContext != nil && lg.llmsContext.HasLLMsFile {
@@ -386,14 +430,15 @@ NÃO crie código de produção
   "next_steps": ["próximos", "passos"]
 }
 
-INSTRUÇÕES:
+INSTRUÇÕES FINAIS:
 1. Foque APENAS nos elementos desta camada especificados acima
 2. NÃO recrie NENHUM arquivo listado como "JÁ CRIADOS"
 3. Se um arquivo já existe, NÃO o inclua nesta camada
 4. Crie apenas arquivos novos específicos desta camada
 5. Use conteúdo realista e funcional
 6. Mantenha coerência com o projeto
-7. Retorne apenas JSON válido`)
+7. Retorne apenas JSON válido
+8. OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições`)
 
 	return prompt.String()
 }
@@ -418,14 +463,142 @@ Retorne JSON:
 Apenas arquivos essenciais da camada.`, plan.Name, lg.projectName, lg.language, plan.Focus, len(previousLayers), plan.Name)
 }
 
+// buildLayerSpecificInstructions constrói instruções específicas para cada camada
+func (lg *LayeredGenerator) buildLayerSpecificInstructions(plan LayerPlan, profile InstructionProfile) string {
+	var instructions strings.Builder
+
+	// Instruções base por camada
+	switch plan.Name {
+	case "core":
+		instructions.WriteString(`CAMADA CORE - CRIE APENAS:
+- Arquivo principal (index.js, main.js, app.js)
+- package.json com dependências
+- Configurações básicas (.env.example, config files)
+- Estrutura de diretórios básica
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie testes, rotas específicas ou lógica de negócio complexa\n")
+		} else {
+			instructions.WriteString("NÃO crie testes, rotas específicas ou lógica de negócio (outras camadas)\n")
+		}
+
+	case "business":
+		instructions.WriteString(`CAMADA BUSINESS - CRIE APENAS:
+- Modelos de dados (models/)
+- Serviços de negócio (services/)
+- Utilitários (utils/)
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie testes, rotas HTTP, configurações ou features avançadas\n")
+		} else {
+			instructions.WriteString("- Middleware de negócio\nNÃO crie testes, rotas HTTP ou configurações\n")
+		}
+
+	case "api":
+		instructions.WriteString(`CAMADA API - CRIE APENAS:
+- Controladores (controllers/)
+- Rotas HTTP (routes/)
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie testes, modelos, configurações ou middleware avançado\n")
+		} else {
+			instructions.WriteString("- Middleware de API\n- Validadores de entrada\nNÃO crie testes, modelos ou configurações\n")
+		}
+
+	case "frontend":
+		instructions.WriteString(`CAMADA FRONTEND - CRIE APENAS:
+- Componentes de interface (components/)
+- Páginas/views (pages/)
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie testes, assets complexos ou funcionalidades avançadas\n")
+		} else {
+			instructions.WriteString("- Estilos (styles/)\n- Assets básicos\nNÃO crie testes ou lógica de backend\n")
+		}
+
+	case "tests":
+		instructions.WriteString(`CAMADA TESTS - CRIE APENAS:
+- Arquivos de teste (.test.js, .spec.js)
+- Configuração de testes
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie mocks complexos ou testes de integração avançados\n")
+		} else {
+			instructions.WriteString("- Mocks e fixtures\n- Scripts de teste\nNÃO crie código de produção\n")
+		}
+
+	case "deployment":
+		instructions.WriteString(`CAMADA DEPLOYMENT - CRIE APENAS:
+- Dockerfile
+- docker-compose.yml
+`)
+		if profile.ScopeControl == "minimal" {
+			instructions.WriteString("NÃO crie configurações de CI/CD complexas ou scripts avançados\n")
+		} else {
+			instructions.WriteString("- Configuração de CI/CD básica\n- Scripts de deploy\nNÃO crie código de aplicação\n")
+		}
+
+	default:
+		instructions.WriteString(fmt.Sprintf(`CAMADA %s - CRIE APENAS:
+- Arquivos relacionados a: %s
+NÃO crie arquivos de outras camadas ou funcionalidades não relacionadas
+`, strings.ToUpper(plan.Name), strings.Join(plan.Focus, ", ")))
+	}
+
+	// Adicionar adaptações específicas
+	if profile.StrictnessLevel >= 8 {
+		instructions.WriteString("\nMODO RÍGIDO ATIVADO:\n")
+		instructions.WriteString("- Seja extremamente específico ao escopo definido\n")
+		instructions.WriteString("- Rejeite qualquer tentativa de adicionar recursos extras\n")
+		instructions.WriteString("- Foque apenas no essencial para esta camada\n")
+	}
+
+	// Adicionar restrições específicas por adaptação
+	if lg.instructionController.Scope == "minimal" {
+		instructions.WriteString("\nRESTRIÇÕES DE ESCOPO MÍNIMO:\n")
+		instructions.WriteString("- Evite qualquer funcionalidade não essencial\n")
+		instructions.WriteString("- Mantenha arquivos simples e diretos\n")
+		instructions.WriteString("- Não adicione comentários extensos ou documentação elaborada\n")
+		instructions.WriteString("- Foque apenas no que é absolutamente necessário\n")
+	}
+
+	return instructions.String()
+}
+
 // parseLayerResponse processa a resposta de uma camada
 func (lg *LayeredGenerator) parseLayerResponse(layerName, response string) (*LayerResult, error) {
 	jsonContent := extractJSONContent(response)
 
+	// Validar conformidade com as instruções antes de processar
+	compliance, err := lg.instructionController.ValidateInstructionCompliance(jsonContent)
+	if err != nil {
+		fmt.Printf("⚠️  Erro ao validar conformidade da camada %s: %v\n", layerName, err)
+	} else if !compliance.IsCompliant {
+		fmt.Printf("⚠️  Camada %s não conforme (score: %.1f%%):\n", layerName, compliance.ComplianceScore)
+		for _, violation := range compliance.ViolatedRules {
+			fmt.Printf("   • Violação: %s\n", violation)
+		}
+		for _, missing := range compliance.MissingRequirements {
+			fmt.Printf("   • Faltando: %s\n", missing)
+		}
+		for _, deviation := range compliance.ScopeDeviations {
+			fmt.Printf("   • Desvio de escopo: %s\n", deviation)
+		}
+
+		// Se o nível de rigidez for alto, falhar em caso de não conformidade
+		profile := lg.instructionController.GetInstructionProfile()
+		if profile.StrictnessLevel >= 8 && compliance.ComplianceScore < profile.QualityThreshold {
+			return nil, fmt.Errorf("camada %s rejeitada por não conformidade (score: %.1f%%, required: %.1f%%)",
+				layerName, compliance.ComplianceScore, profile.QualityThreshold)
+		}
+	} else {
+		fmt.Printf("✅ Camada %s conforme (score: %.1f%%)\n", layerName, compliance.ComplianceScore)
+	}
+
 	// Validar a estrutura da camada
 	validation := ValidateProjectStructure(jsonContent, lg.language)
 	if !validation.IsValid {
-		fmt.Printf("⚠️  Camada %s apresenta problemas:\n", layerName)
+		fmt.Printf("⚠️  Camada %s apresenta problemas estruturais:\n", layerName)
 		for _, issue := range validation.Issues {
 			fmt.Printf("   • %s\n", issue)
 		}
@@ -433,13 +606,13 @@ func (lg *LayeredGenerator) parseLayerResponse(layerName, response string) (*Lay
 
 		// Se o score for muito baixo, falhar
 		if validation.Score < 40 {
-			return nil, fmt.Errorf("camada %s não passou na validação (score: %.1f/100)", layerName, validation.Score)
+			return nil, fmt.Errorf("camada %s não passou na validação estrutural (score: %.1f/100)", layerName, validation.Score)
 		}
 
 		// Caso contrário, mostrar avisos mas continuar
 		fmt.Printf("⚠️  Continuando com avisos...\n")
 	} else {
-		fmt.Printf("✅ Camada %s validada com sucesso (score: %.1f/100)\n", layerName, validation.Score)
+		fmt.Printf("✅ Camada %s validada estruturalmente com sucesso (score: %.1f/100)\n", layerName, validation.Score)
 		if len(validation.Suggestions) > 0 {
 			fmt.Printf("💡 Sugestões de melhoria para camada %s:\n", layerName)
 			for _, suggestion := range validation.Suggestions {
@@ -532,4 +705,44 @@ func IsContextOverflowError(err error) bool {
 	}
 
 	return false
+}
+
+// detectProjectType detecta o tipo de projeto baseado na descrição
+func detectProjectType(description string) string {
+	desc := strings.ToLower(description)
+
+	if containsAny(desc, []string{"api", "rest", "servidor", "backend", "microserviço", "microservice"}) {
+		return "backend_api"
+	}
+
+	if containsAny(desc, []string{"frontend", "ui", "interface", "react", "vue", "angular", "web"}) {
+		return "frontend_web"
+	}
+
+	if containsAny(desc, []string{"cli", "command", "linha de comando", "terminal", "script"}) {
+		return "cli_tool"
+	}
+
+	if containsAny(desc, []string{"biblioteca", "library", "package", "lib", "sdk"}) {
+		return "library"
+	}
+
+	if containsAny(desc, []string{"bot", "chatbot", "automação", "automation"}) {
+		return "automation_bot"
+	}
+
+	if containsAny(desc, []string{"jogo", "game", "gaming"}) {
+		return "game"
+	}
+
+	if containsAny(desc, []string{"mobile", "app", "android", "ios"}) {
+		return "mobile_app"
+	}
+
+	if containsAny(desc, []string{"dashboard", "admin", "painel", "gerenciamento"}) {
+		return "admin_dashboard"
+	}
+
+	// Tipo padrão
+	return "general_application"
 }

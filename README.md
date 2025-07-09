@@ -404,6 +404,45 @@ Para mais detalhes, consulte a [documentação do sistema de retry](docs/retry_s
 - `zion --help` - Mostra ajuda geral
 - `zion <comando> --help` - Mostra ajuda específica de um comando
 
+## 🦎 Sistema de Controle Adaptativo de Instruções
+
+O Zion AI implementa um sistema revolucionário de controle adaptativo que funciona como um **camaleão**, adaptando-se dinamicamente ao propósito específico do projeto:
+
+### 🎯 Características Principais
+
+- **🔍 Detecção Inteligente**: Analisa automaticamente a descrição do projeto para identificar intenções
+- **📏 Controle de Escopo**: Adapta-se a diferentes níveis (mínimo, padrão, abrangente)
+- **🔒 Obediência Estrita**: Segue rigorosamente as instruções fornecidas
+- **⚖️ Validação de Conformidade**: Verifica se a saída está conforme as especificações
+- **🏗️ Integração com Camadas**: Funciona perfeitamente com geração em camadas
+
+### 🎨 Exemplos de Uso
+
+#### Escopo Mínimo (Apenas o Essencial)
+```bash
+zion scaffold js "minha-api" "uma API REST simples apenas para CRUD de usuários"
+```
+**Resultado**: Apenas arquivos essenciais para CRUD, sem testes, docker ou features extras.
+
+#### Escopo Abrangente (Solução Completa)
+```bash
+zion scaffold js "minha-app" "uma aplicação completa com frontend, backend, testes e docker"
+```
+**Resultado**: Solução completa com API, frontend, testes, Docker, CI/CD e documentação.
+
+#### Escopo Padrão (Balanceado)
+```bash
+zion scaffold js "minha-app" "um sistema de gerenciamento de tarefas"
+```
+**Resultado**: Estrutura balanceada com funcionalidade essencial e boas práticas.
+
+### 🔧 Palavras-Chave de Controle
+
+- **Escopo Mínimo**: "apenas", "somente", "só", "básico", "simples"
+- **Escopo Abrangente**: "completo", "abrangente", "robusto", "detalhado"
+- **Recursos Específicos**: "api", "frontend", "testes", "docker", "banco"
+- **Exclusões**: "sem testes", "sem docker", "não incluir"
+
 ## 📊 Comparação de Provedores
 
 | Característica | Gemini | GPT (OpenAI) | OpenRouter | Claude |

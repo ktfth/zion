@@ -926,8 +926,14 @@ func BuildImprovedPrompt(language, projectName, description string) string {
 
 // buildImprovedPrompt constrói um prompt melhorado e mais consistente
 func buildImprovedPrompt(language, projectName, description string) string {
+	// Criar controlador adaptativo para geração normal
+	instructionController := NewAdaptiveInstructionController(detectProjectType(description), language, description)
+
 	// Construir o prompt base com instruções específicas
 	basePrompt := buildBasePrompt(language, projectName, description)
+
+	// Aplicar controle adaptativo de instruções
+	adaptivePrompt := instructionController.BuildAdaptivePrompt(basePrompt)
 
 	// Construir instruções de formato JSON específicas
 	jsonInstructions := buildJSONInstructions(language)
@@ -980,7 +986,8 @@ VALIDAÇÃO:
 - A estrutura deve ser coerente com a linguagem %s
 - Inclua pelo menos 5-8 arquivos essenciais
 - Inclua pelo menos 3-5 diretórios organizados
-- Conteúdo dos arquivos deve ser funcional e não apenas placeholder`, basePrompt, jsonInstructions, languageExamples, language)
+- Conteúdo dos arquivos deve ser funcional e não apenas placeholder
+- OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições especificadas`, adaptivePrompt, jsonInstructions, languageExamples, language)
 }
 
 // generateWithUnifiedStrategy implementa uma estratégia unificada de geração
