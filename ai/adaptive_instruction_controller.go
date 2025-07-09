@@ -8,13 +8,14 @@ import (
 
 // AdaptiveInstructionController controla as instruções de forma adaptativa
 type AdaptiveInstructionController struct {
-	ProjectType   string
-	Language      string
-	Scope         string // "minimal", "standard", "comprehensive"
-	TargetPurpose string
-	Constraints   []string
-	Requirements  []string
-	Adaptations   map[string]interface{}
+	ProjectType            string
+	Language               string
+	Scope                  string // "minimal", "standard", "comprehensive"
+	TargetPurpose          string
+	Constraints            []string
+	Requirements           []string
+	Adaptations            map[string]interface{}
+	UltimateGoalController *UltimateGoalController
 }
 
 // InstructionProfile define perfis de instruções para diferentes contextos
@@ -32,13 +33,14 @@ type InstructionProfile struct {
 // NewAdaptiveInstructionController cria um novo controlador adaptativo
 func NewAdaptiveInstructionController(projectType, language, description string) *AdaptiveInstructionController {
 	controller := &AdaptiveInstructionController{
-		ProjectType:   projectType,
-		Language:      language,
-		Scope:         "standard",
-		TargetPurpose: description,
-		Constraints:   make([]string, 0),
-		Requirements:  make([]string, 0),
-		Adaptations:   make(map[string]interface{}),
+		ProjectType:            projectType,
+		Language:               language,
+		Scope:                  "standard",
+		TargetPurpose:          description,
+		Constraints:            make([]string, 0),
+		Requirements:           make([]string, 0),
+		Adaptations:            make(map[string]interface{}),
+		UltimateGoalController: NewUltimateGoalController(description),
 	}
 
 	// Analisar descrição para extrair intenções
@@ -290,7 +292,13 @@ QUALITY THRESHOLD: %.1f%%
 
 `, profile.Name, profile.StrictnessLevel, profile.ScopeControl, profile.QualityThreshold))
 
-	// Instruções de escopo
+	// NOVA FUNCIONALIDADE: Integrar Ultimate Goal Controller
+	if aic.UltimateGoalController != nil {
+		goalPrompt := aic.UltimateGoalController.BuildGoalFocusedPrompt(basePrompt)
+		return goalPrompt
+	}
+
+	// Instruções de escopo (fallback para compatibilidade)
 	prompt.WriteString(aic.buildScopeInstructions(profile))
 
 	// Prompt base
@@ -328,7 +336,7 @@ MINIMAL SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
 `)
 	case "comprehensive":
 		instructions.WriteString(`
-COMPREHENSIVE SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
+COMPREHENSENSIVE SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
 - Implemente uma solução COMPLETA e ROBUSTA
 - Inclua TODAS as boas práticas relevantes para o domínio
 - Adicione configurações profissionais de ambiente e deployment
@@ -853,4 +861,61 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// FilterGeneratedContent filtra o conteúdo gerado baseado no objective final
+func (aic *AdaptiveInstructionController) FilterGeneratedContent(content string) (string, error) {
+	if aic.UltimateGoalController == nil {
+		return content, nil
+	}
+
+	// Aplicar filtros baseados no objetivo final
+	filteredContent, err := aic.UltimateGoalController.FilterGeneratedContent(content)
+	if err != nil {
+		return content, fmt.Errorf("erro ao filtrar conteúdo: %v", err)
+	}
+
+	return filteredContent, nil
+}
+
+// GetGoalAnalysis retorna análise detalhada do objetivo
+func (aic *AdaptiveInstructionController) GetGoalAnalysis() *GoalAnalysis {
+	if aic.UltimateGoalController == nil {
+		return nil
+	}
+
+	analysis := aic.UltimateGoalController.GetGoalSummary()
+	return &analysis
+}
+
+// ValidateGoalCompliance valida se o conteúdo está alinhado com o objetivo
+func (aic *AdaptiveInstructionController) ValidateGoalCompliance(content string) (bool, []string) {
+	if aic.UltimateGoalController == nil {
+		return true, []string{}
+	}
+
+	issues := make([]string, 0)
+
+	// Validar se arquivos desnecessários foram gerados
+	for _, excluded := range aic.UltimateGoalController.ExcludedFiles {
+		if strings.Contains(content, excluded) {
+			issues = append(issues, fmt.Sprintf("Arquivo desnecessário encontrado: %s", excluded))
+		}
+	}
+
+	// Validar se diretórios desnecessários foram gerados
+	for _, excluded := range aic.UltimateGoalController.ExcludedDirs {
+		if strings.Contains(content, excluded) {
+			issues = append(issues, fmt.Sprintf("Diretório desnecessário encontrado: %s", excluded))
+		}
+	}
+
+	// Validar se arquivos obrigatórios estão presentes
+	for _, required := range aic.UltimateGoalController.RequiredFiles {
+		if !strings.Contains(content, required) {
+			issues = append(issues, fmt.Sprintf("Arquivo obrigatório ausente: %s", required))
+		}
+	}
+
+	return len(issues) == 0, issues
 }

@@ -485,6 +485,18 @@ func (lg *LayeredGenerator) generateLayer(plan LayerPlan, previousLayers []Layer
 		return nil, err
 	}
 
+	// NOVA FUNCIONALIDADE: Aplicar filtro de Ultimate Goal na camada
+	if lg.instructionController != nil && lg.instructionController.UltimateGoalController != nil {
+		filteredResponse, filterErr := lg.instructionController.UltimateGoalController.FilterGeneratedContent(response)
+		if filterErr != nil {
+			fmt.Printf("⚠️  Erro ao filtrar camada %s: %v\n", plan.Name, filterErr)
+			// Continuar com resposta original se filtro falhar
+		} else {
+			response = filteredResponse
+			fmt.Printf("🎯 Camada %s filtrada baseada no objetivo final\n", plan.Name)
+		}
+	}
+
 	// Processar resposta da camada
 	return lg.parseLayerResponse(plan.Name, response)
 }
@@ -509,13 +521,20 @@ CAMADA ATUAL - FOCO ABSOLUTO:
 INSTRUÇÃO CRÍTICA - PRINCÍPIO CAMALEÃO:
 Esta camada deve conter EXCLUSIVAMENTE arquivos relacionados a: %s
 
+🎯 ULTIMATE GOAL FOCUS ATIVADO:
+- Gere APENAS arquivos que contribuem para: %s
+- Cada arquivo deve ter JUSTIFICATIVA clara no contexto do objetivo final
+- REJEITE tentativas de adicionar recursos não solicitados
+- MANTENHA laser focus no propósito específico declarado
+- ELIMINE qualquer componente que não seja DIRETAMENTE necessário
+
 ADAPTE-SE precisamente ao contexto e propósito. Seja um camaleão que:
 - MUDA sua estrutura baseada no objetivo final
 - ELIMINA componentes desnecessários
 - MANTÉM consistência e coerência
 - FOCA no valor entregue
 
-`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", "))
+`, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", "), lg.description)
 
 	// Aplicar controle adaptativo de instruções
 	adaptivePrompt := lg.instructionController.BuildAdaptivePrompt(basePrompt)

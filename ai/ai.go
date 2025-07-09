@@ -1012,7 +1012,41 @@ func generateWithUnifiedStrategy(provider providers.Provider, prompt, language, 
 		return "", err
 	}
 
-	return response, nil
+	// NOVA FUNCIONALIDADE: Aplicar filtro de Ultimate Goal
+	fmt.Printf("🎯 Aplicando filtro de Ultimate Goal...\n")
+
+	// Criar controlador adaptativo para validar o conteúdo
+	adaptiveController := NewAdaptiveInstructionController(detectProjectType(description), language, description)
+
+	// Filtrar conteúdo baseado no objetivo final
+	filteredResponse, err := adaptiveController.FilterGeneratedContent(response)
+	if err != nil {
+		fmt.Printf("⚠️  Erro ao filtrar conteúdo: %v\n", err)
+		// Continuar com resposta original se filtro falhar
+		filteredResponse = response
+	}
+
+	// Validar conformidade com o objetivo
+	isCompliant, issues := adaptiveController.ValidateGoalCompliance(filteredResponse)
+	if !isCompliant {
+		fmt.Printf("⚠️  Conteúdo não está totalmente alinhado com o objetivo:\n")
+		for _, issue := range issues {
+			fmt.Printf("   • %s\n", issue)
+		}
+		fmt.Printf("📊 Continuando com avisos...\n")
+	} else {
+		fmt.Printf("✅ Conteúdo validado e alinhado com o objetivo final\n")
+	}
+
+	// Mostrar análise do objetivo se disponível
+	if analysis := adaptiveController.GetGoalAnalysis(); analysis != nil {
+		fmt.Printf("📋 Análise do objetivo (confiança: %.1f%%):\n", analysis.Confidence*100)
+		fmt.Printf("   🎯 Objetivo: %s\n", analysis.PrimaryGoal)
+		fmt.Printf("   📁 Arquivos obrigatórios: %d\n", len(analysis.RequiredFiles))
+		fmt.Printf("   🚫 Arquivos desnecessários: %d\n", len(analysis.UnnecessaryFiles))
+	}
+
+	return filteredResponse, nil
 }
 
 // generateWithLayeredStrategy gera usando o sistema de camadas
