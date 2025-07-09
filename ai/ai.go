@@ -980,14 +980,39 @@ REGRAS CRÍTICAS:
 9. Use valores booleanos sem aspas (true, false)
 10. Use valores numéricos sem aspas
 
+🎯 REGRAS DE RELEVÂNCIA ABSOLUTA:
+11. GERE APENAS arquivos que são DIRETAMENTE necessários para o objetivo
+12. CADA arquivo deve ter JUSTIFICATIVA CLARA no contexto do objetivo
+13. ELIMINE qualquer arquivo que não contribua para o objetivo final
+14. PREFIRA menos arquivos com mais funcionalidade do que muitos arquivos
+15. NÃO crie arquivos "por padrão" ou "boas práticas" se não forem necessários
+16. TESTE: se você remover este arquivo, o objetivo ainda pode ser alcançado? Se sim, NÃO inclua
+17. FOQUE em funcionalidade CORE, não em estrutura elaborada
+18. EVITE over-engineering e padrões complexos desnecessários
+19. Para projetos simples, prefira soluções de arquivo único quando apropriado
+20. NÃO inclua arquivos de configuração, teste, ou documentação a menos que explicitamente solicitado
+
 VALIDAÇÃO:
 - O JSON deve passar em JSON.parse() sem erros
 - Todos os arquivos devem ter conteúdo válido e realista
 - A estrutura deve ser coerente com a linguagem %s
-- Inclua pelo menos 5-8 arquivos essenciais
-- Inclua pelo menos 3-5 diretórios organizados
+- CRÍTICO: Inclua apenas arquivos ESSENCIAIS para o objetivo específico
+- CRÍTICO: Evite arquivos desnecessários ou "nice-to-have"
 - Conteúdo dos arquivos deve ser funcional e não apenas placeholder
-- OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições especificadas`, adaptivePrompt, jsonInstructions, languageExamples, language)
+- Arquitetura deve ser apropriada para o escopo (prefira simplicidade)
+- OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições especificadas
+
+🚫 EVITE ARQUIVOS DESNECESSÁRIOS COMO:
+- Arquivos de teste (a menos que explicitamente solicitado)
+- Arquivos de configuração avançada (docker, kubernetes, etc.)
+- Arquivos de documentação além do README básico
+- Arquivos de CI/CD ou deployment
+- Arquivos de monitoramento ou logging
+- Arquivos de utilitários não essenciais
+- Arquivos de exemplo ou demonstração
+- Arquivos de benchmark ou performance
+- Arquivos de migração ou seeds
+- Arquivos de middleware não necessários`, adaptivePrompt, jsonInstructions, languageExamples, language)
 }
 
 // generateWithUnifiedStrategy implementa uma estratégia unificada de geração

@@ -233,6 +233,30 @@ func calculatePriority(description string) int {
 func (ugc *UltimateGoalController) analyzeGoal(description string) {
 	desc := strings.ToLower(description)
 
+	// Detectar indicadores de escopo mínimo/específico
+	minimalIndicators := []string{
+		"hello world", "hello", "hola mundo", "olá mundo",
+		"apenas", "somente", "só", "simples", "básico", "mínimo",
+		"específico", "exato", "direto", "clean", "limpo",
+		"teste", "exemplo", "demo", "prova de conceito",
+	}
+
+	isMinimalProject := false
+	for _, indicator := range minimalIndicators {
+		if strings.Contains(desc, indicator) {
+			isMinimalProject = true
+			ugc.Scope = "minimal"
+			ugc.Priority = 9
+			break
+		}
+	}
+
+	// Para projetos mínimos, ser extremamente restritivo
+	if isMinimalProject {
+		ugc.addMinimalProjectRules()
+		return
+	}
+
 	// Análise de componentes necessários baseada no objetivo
 	if containsAny(desc, []string{"api", "rest", "endpoint", "servidor", "service"}) {
 		ugc.RequiredFiles = append(ugc.RequiredFiles, "main.go", "handlers.go", "routes.go", "server.go")
@@ -260,36 +284,187 @@ func (ugc *UltimateGoalController) analyzeGoal(description string) {
 
 	// Análise de exclusões baseada no escopo
 	if ugc.Scope == "minimal" || ugc.Priority >= 8 {
-		// Excluir arquivos não essenciais para escopo mínimo
-		ugc.ExcludedFiles = append(ugc.ExcludedFiles,
-			"docker-compose.yml", "Dockerfile",
-			"test_helpers.go", "integration_test.go",
-			"docs.md", "examples.md", "CHANGELOG.md",
-			"benchmark_test.go", "performance_test.go",
-			"docker-compose.prod.yml", "docker-compose.dev.yml",
-			"helm-chart.yaml", "kubernetes.yaml",
-			"swagger.yaml", "openapi.yaml",
-		)
-		ugc.ExcludedDirs = append(ugc.ExcludedDirs,
-			"examples", "benchmarks", "performance",
-			"kubernetes", "helm", "docker", "deployment",
-			"migrations", "seeds", "fixtures",
-		)
+		ugc.addStrictExclusionRules()
 	}
 
 	// Exclusões específicas baseadas no objetivo
-	if dbFocus, ok := ugc.Adaptations["database_focus"]; !ok || !dbFocus.(bool) {
-		if ugc.Scope == "minimal" {
-			ugc.ExcludedFiles = append(ugc.ExcludedFiles, "database.go", "models.go", "migrations.go")
-			ugc.ExcludedDirs = append(ugc.ExcludedDirs, "database", "models", "migrations")
-		}
+	ugc.addConditionalExclusions()
+}
+
+// addMinimalProjectRules adiciona regras para projetos mínimos
+func (ugc *UltimateGoalController) addMinimalProjectRules() {
+	// Para projetos mínimos, permitir apenas arquivos absolutamente essenciais
+	ugc.RequiredFiles = []string{"main.go", "go.mod", "README.md"}
+	ugc.RequiredDirs = []string{} // Nenhum diretório adicional necessário
+
+	// Excluir praticamente tudo que não é essencial
+	ugc.ExcludedFiles = []string{
+		// Arquivos de configuração desnecessários
+		"docker-compose.yml", "Dockerfile", ".dockerignore",
+		"kubernetes.yaml", "helm-chart.yaml", "skaffold.yaml",
+		"docker-compose.prod.yml", "docker-compose.dev.yml",
+
+		// Arquivos de teste desnecessários
+		"test_helpers.go", "integration_test.go", "benchmark_test.go",
+		"performance_test.go", "e2e_test.go", "functional_test.go",
+		"main_test.go", "handler_test.go", "service_test.go",
+
+		// Arquivos de documentação desnecessários
+		"docs.md", "examples.md", "CHANGELOG.md", "CONTRIBUTING.md",
+		"CODE_OF_CONDUCT.md", "SECURITY.md", "API.md", "USAGE.md",
+
+		// Arquivos de CI/CD desnecessários
+		".github/workflows/ci.yml", ".github/workflows/cd.yml",
+		".gitlab-ci.yml", ".travis.yml", "Jenkinsfile", "azure-pipelines.yml",
+
+		// Arquivos de banco de dados desnecessários
+		"database.go", "models.go", "migrations.go", "seeds.go",
+		"schema.sql", "init.sql", "migrate.go", "connection.go",
+
+		// Arquivos de configuração avançada
+		"config.yaml", "config.json", "settings.toml", "env.example",
+		".env", ".env.local", ".env.production", ".env.development",
+
+		// Arquivos de API desnecessários
+		"handlers.go", "routes.go", "middleware.go", "server.go",
+		"swagger.yaml", "openapi.yaml", "api.go", "rest.go",
+
+		// Arquivos de frontend desnecessários
+		"index.html", "style.css", "app.js", "package.json",
+		"webpack.config.js", "tsconfig.json", "tailwind.config.js",
+
+		// Arquivos de utilitários desnecessários
+		"utils.go", "helpers.go", "constants.go", "types.go",
+		"errors.go", "logger.go", "validator.go", "auth.go",
+
+		// Arquivos de monitoramento desnecessários
+		"metrics.go", "monitoring.go", "health.go", "prometheus.go",
+		"grafana.json", "alertmanager.yml", "logs.go",
+
+		// Arquivos de cache desnecessários
+		"cache.go", "redis.go", "memcached.go", "storage.go",
+
+		// Arquivos de build desnecessários
+		"Makefile", "build.sh", "deploy.sh", "install.sh",
+		"goreleaser.yml", "release.yml", "version.go",
 	}
 
+	ugc.ExcludedDirs = []string{
+		// Diretórios de desenvolvimento desnecessários
+		"examples", "benchmarks", "performance", "scripts",
+		"tools", "build", "dist", "vendor", "node_modules",
+
+		// Diretórios de infraestrutura desnecessários
+		"kubernetes", "helm", "docker", "deployment", "infra",
+		"terraform", "ansible", "vagrant", "compose",
+
+		// Diretórios de dados desnecessários
+		"migrations", "seeds", "fixtures", "data", "sql",
+		"database", "models", "entities", "repositories",
+
+		// Diretórios de configuração desnecessários
+		"config", "configs", "settings", "environments",
+		"secrets", "certs", "keys", "ssl",
+
+		// Diretórios de documentação desnecessários
+		"docs", "documentation", "wiki", "guides",
+		"tutorials", "examples", "samples", "demos",
+
+		// Diretórios de teste desnecessários
+		"tests", "test", "testing", "spec", "specs",
+		"integration", "e2e", "functional", "unit",
+
+		// Diretórios de frontend desnecessários
+		"frontend", "web", "static", "assets", "public",
+		"components", "pages", "views", "templates",
+
+		// Diretórios de API desnecessários
+		"api", "handlers", "routes", "middleware", "controllers",
+		"services", "endpoints", "rest", "graphql",
+
+		// Diretórios de utilitários desnecessários
+		"utils", "helpers", "common", "shared", "libs",
+		"packages", "modules", "plugins", "extensions",
+
+		// Diretórios de monitoramento desnecessários
+		"monitoring", "metrics", "logs", "observability",
+		"telemetry", "tracing", "profiling", "debug",
+
+		// Diretórios de cache desnecessários
+		"cache", "redis", "memcached", "storage", "tmp",
+
+		// Diretórios de CI/CD desnecessários
+		".github", ".gitlab", "ci", "cd", "pipelines",
+		"workflows", "actions", "jobs", "stages",
+	}
+}
+
+// addStrictExclusionRules adiciona regras de exclusão rigorosas
+func (ugc *UltimateGoalController) addStrictExclusionRules() {
+	// Adicionar arquivos comuns que geralmente são desnecessários
+	commonUnnecessaryFiles := []string{
+		"docker-compose.yml", "Dockerfile", ".dockerignore",
+		"test_helpers.go", "integration_test.go", "benchmark_test.go",
+		"docs.md", "examples.md", "CHANGELOG.md", "CONTRIBUTING.md",
+		"performance_test.go", "docker-compose.prod.yml", "docker-compose.dev.yml",
+		"helm-chart.yaml", "kubernetes.yaml", "swagger.yaml", "openapi.yaml",
+		".github/workflows/ci.yml", ".gitlab-ci.yml", ".travis.yml",
+		"Jenkinsfile", "azure-pipelines.yml", "goreleaser.yml",
+		"config.yaml", "config.json", "settings.toml", ".env",
+		"Makefile", "build.sh", "deploy.sh", "install.sh",
+		"monitoring.go", "metrics.go", "health.go", "prometheus.go",
+		"cache.go", "redis.go", "memcached.go", "logger.go",
+		"errors.go", "validator.go", "auth.go", "middleware.go",
+	}
+
+	commonUnnecessaryDirs := []string{
+		"examples", "benchmarks", "performance", "scripts", "tools",
+		"kubernetes", "helm", "docker", "deployment", "infra",
+		"migrations", "seeds", "fixtures", "data", "sql",
+		"docs", "documentation", "wiki", "guides", "tutorials",
+		"tests", "test", "testing", "spec", "specs", "integration",
+		"monitoring", "metrics", "logs", "observability", "telemetry",
+		"cache", "redis", "memcached", "storage", "tmp",
+		".github", ".gitlab", "ci", "cd", "pipelines", "workflows",
+		"vendor", "node_modules", "build", "dist", "public",
+	}
+
+	ugc.ExcludedFiles = append(ugc.ExcludedFiles, commonUnnecessaryFiles...)
+	ugc.ExcludedDirs = append(ugc.ExcludedDirs, commonUnnecessaryDirs...)
+}
+
+// addConditionalExclusions adiciona exclusões condicionais baseadas no foco
+func (ugc *UltimateGoalController) addConditionalExclusions() {
+	// Se não há foco em database, excluir arquivos relacionados
+	if dbFocus, ok := ugc.Adaptations["database_focus"]; !ok || !dbFocus.(bool) {
+		dbFiles := []string{"database.go", "models.go", "migrations.go", "schema.sql", "connection.go"}
+		dbDirs := []string{"database", "models", "migrations", "sql", "data"}
+		ugc.ExcludedFiles = append(ugc.ExcludedFiles, dbFiles...)
+		ugc.ExcludedDirs = append(ugc.ExcludedDirs, dbDirs...)
+	}
+
+	// Se não há foco em frontend, excluir arquivos relacionados
 	if frontendFocus, ok := ugc.Adaptations["frontend_focus"]; !ok || !frontendFocus.(bool) {
-		if ugc.Scope == "minimal" {
-			ugc.ExcludedFiles = append(ugc.ExcludedFiles, "index.html", "style.css", "app.js")
-			ugc.ExcludedDirs = append(ugc.ExcludedDirs, "frontend", "web", "static", "assets")
-		}
+		frontendFiles := []string{"index.html", "style.css", "app.js", "package.json", "webpack.config.js"}
+		frontendDirs := []string{"frontend", "web", "static", "assets", "public", "components"}
+		ugc.ExcludedFiles = append(ugc.ExcludedFiles, frontendFiles...)
+		ugc.ExcludedDirs = append(ugc.ExcludedDirs, frontendDirs...)
+	}
+
+	// Se não há foco em API, excluir arquivos relacionados
+	if apiFocus, ok := ugc.Adaptations["api_focus"]; !ok || !apiFocus.(bool) {
+		apiFiles := []string{"handlers.go", "routes.go", "middleware.go", "server.go", "swagger.yaml"}
+		apiDirs := []string{"api", "handlers", "routes", "middleware", "controllers", "services"}
+		ugc.ExcludedFiles = append(ugc.ExcludedFiles, apiFiles...)
+		ugc.ExcludedDirs = append(ugc.ExcludedDirs, apiDirs...)
+	}
+
+	// Se não há foco em CLI, excluir arquivos relacionados
+	if cliFocus, ok := ugc.Adaptations["cli_focus"]; !ok || !cliFocus.(bool) {
+		cliFiles := []string{"cmd.go", "cli.go", "flags.go", "commands.go"}
+		cliDirs := []string{"cmd", "cli", "commands"}
+		ugc.ExcludedFiles = append(ugc.ExcludedFiles, cliFiles...)
+		ugc.ExcludedDirs = append(ugc.ExcludedDirs, cliDirs...)
 	}
 }
 
@@ -361,14 +536,26 @@ func (ugc *UltimateGoalController) BuildGoalFocusedPrompt(basePrompt string) str
 	prompt.WriteString("📐 INSTRUÇÕES DE ESCOPO:\n")
 	switch ugc.Scope {
 	case "minimal":
+		prompt.WriteString("   🎯 MODO ULTRA MINIMALISTA ATIVADO\n")
 		prompt.WriteString("   • FOQUE EXCLUSIVAMENTE no objetivo declarado\n")
 		prompt.WriteString("   • ELIMINE qualquer componente não essencial\n")
 		prompt.WriteString("   • MANTENHA arquitetura mais simples possível\n")
 		prompt.WriteString("   • EVITE over-engineering e padrões complexos\n")
+		prompt.WriteString("   • GERE APENAS arquivos que são ABSOLUTAMENTE necessários\n")
+		prompt.WriteString("   • PREFIRA um único arquivo quando possível\n")
+		prompt.WriteString("   • NÃO crie diretórios desnecessários\n")
+		prompt.WriteString("   • NÃO inclua arquivos de configuração avançada\n")
+		prompt.WriteString("   • NÃO inclua arquivos de teste a menos que explicitamente solicitado\n")
+		prompt.WriteString("   • NÃO inclua arquivos de documentação além de README básico\n")
+		prompt.WriteString("   • NÃO inclua arquivos de Docker/containerização\n")
+		prompt.WriteString("   • NÃO inclua arquivos de CI/CD\n")
+		prompt.WriteString("   • NÃO inclua arquivos de monitoramento/logging\n")
+		prompt.WriteString("   • EXEMPLO: Hello World = apenas main.go + go.mod + README.md\n")
 	case "focused":
 		prompt.WriteString("   • CONCENTRE-SE no objetivo mas inclua suporte básico\n")
 		prompt.WriteString("   • ADICIONE apenas recursos diretamente relacionados\n")
 		prompt.WriteString("   • MANTENHA estrutura organizada mas não complexa\n")
+		prompt.WriteString("   • EVITE recursos que não contribuem para o objetivo\n")
 	case "balanced":
 		prompt.WriteString("   • EQUILIBRE funcionalidade essencial com boas práticas\n")
 		prompt.WriteString("   • INCLUA recursos padrão relevantes\n")
@@ -407,9 +594,10 @@ func (ugc *UltimateGoalController) FilterGeneratedContent(content string) (strin
 
 	// Filtrar arquivos e diretórios
 	if projectStructure, ok := structure["structure"].(map[string]interface{}); ok {
-		// Filtrar arquivos
+		// Filtrar arquivos com maior rigor
 		if files, ok := projectStructure["files"].(map[string]interface{}); ok {
 			filteredFiles := make(map[string]interface{})
+			totalFiles := len(files)
 
 			for filename, fileContent := range files {
 				if ugc.shouldIncludeFile(filename) {
@@ -417,18 +605,37 @@ func (ugc *UltimateGoalController) FilterGeneratedContent(content string) (strin
 				}
 			}
 
+			// Log da filtragem para projetos mínimos
+			if ugc.Scope == "minimal" {
+				filteredCount := len(filteredFiles)
+				if filteredCount < totalFiles {
+					fmt.Printf("🧹 Filtro rigoroso aplicado: %d arquivos removidos (%d → %d)\n",
+						totalFiles-filteredCount, totalFiles, filteredCount)
+				}
+			}
+
 			projectStructure["files"] = filteredFiles
 		}
 
-		// Filtrar diretórios
+		// Filtrar diretórios com maior rigor
 		if dirs, ok := projectStructure["directories"].([]interface{}); ok {
 			filteredDirs := make([]interface{}, 0)
+			totalDirs := len(dirs)
 
 			for _, dir := range dirs {
 				if dirName, ok := dir.(string); ok {
 					if ugc.shouldIncludeDir(dirName) {
 						filteredDirs = append(filteredDirs, dir)
 					}
+				}
+			}
+
+			// Log da filtragem para projetos mínimos
+			if ugc.Scope == "minimal" {
+				filteredCount := len(filteredDirs)
+				if filteredCount < totalDirs {
+					fmt.Printf("🧹 Filtro rigoroso aplicado: %d diretórios removidos (%d → %d)\n",
+						totalDirs-filteredCount, totalDirs, filteredCount)
 				}
 			}
 
@@ -447,6 +654,13 @@ func (ugc *UltimateGoalController) FilterGeneratedContent(content string) (strin
 
 // shouldIncludeFile determina se um arquivo deve ser incluído baseado no objetivo
 func (ugc *UltimateGoalController) shouldIncludeFile(filename string) bool {
+	// Verificar se está na lista de arquivos explicitamente excluídos
+	for _, excluded := range ugc.ExcludedFiles {
+		if filename == excluded || strings.Contains(filename, excluded) {
+			return false
+		}
+	}
+
 	// Verificar se está na lista de arquivos obrigatórios
 	for _, required := range ugc.RequiredFiles {
 		if filename == required || strings.Contains(filename, required) {
@@ -454,25 +668,24 @@ func (ugc *UltimateGoalController) shouldIncludeFile(filename string) bool {
 		}
 	}
 
-	// Verificar se está na lista de arquivos excluídos
-	for _, excluded := range ugc.ExcludedFiles {
-		if filename == excluded || strings.Contains(filename, excluded) {
-			return false
-		}
+	// Para projetos mínimos, aplicar filtro mais rigoroso
+	if ugc.Scope == "minimal" || ugc.Priority >= 8 {
+		return ugc.isMinimalEssentialFile(filename)
 	}
 
-	// Análise baseada no objetivo e escopo
-	if ugc.Scope == "minimal" {
-		// Para escopo mínimo, ser mais restritivo
-		return ugc.isEssentialFile(filename)
-	}
-
-	// Para outros escopos, incluir se não estiver explicitamente excluído
-	return true
+	// Para outros escopos, usar análise padrão
+	return ugc.isEssentialFile(filename)
 }
 
 // shouldIncludeDir determina se um diretório deve ser incluído baseado no objetivo
 func (ugc *UltimateGoalController) shouldIncludeDir(dirname string) bool {
+	// Verificar se está na lista de diretórios explicitamente excluídos
+	for _, excluded := range ugc.ExcludedDirs {
+		if dirname == excluded || strings.Contains(dirname, excluded) {
+			return false
+		}
+	}
+
 	// Verificar se está na lista de diretórios obrigatórios
 	for _, required := range ugc.RequiredDirs {
 		if dirname == required || strings.Contains(dirname, required) {
@@ -480,32 +693,29 @@ func (ugc *UltimateGoalController) shouldIncludeDir(dirname string) bool {
 		}
 	}
 
-	// Verificar se está na lista de diretórios excluídos
-	for _, excluded := range ugc.ExcludedDirs {
-		if dirname == excluded || strings.Contains(dirname, excluded) {
-			return false
-		}
+	// Para projetos mínimos, aplicar filtro mais rigoroso
+	if ugc.Scope == "minimal" || ugc.Priority >= 8 {
+		return ugc.isMinimalEssentialDir(dirname)
 	}
 
-	// Análise baseada no objetivo e escopo
-	if ugc.Scope == "minimal" {
-		// Para escopo mínimo, ser mais restritivo
-		return ugc.isEssentialDir(dirname)
-	}
-
-	// Para outros escopos, incluir se não estiver explicitamente excluído
-	return true
+	// Para outros escopos, usar análise padrão
+	return ugc.isEssentialDir(dirname)
 }
 
 // isEssentialFile determina se um arquivo é essencial para o objetivo
 func (ugc *UltimateGoalController) isEssentialFile(filename string) bool {
-	// Arquivos sempre essenciais
+	// Para projetos com escopo mínimo, ser extremamente seletivo
+	if ugc.Scope == "minimal" {
+		return ugc.isMinimalEssentialFile(filename)
+	}
+
+	// Arquivos sempre essenciais para projetos normais
 	essentialFiles := []string{
 		"main.go", "main.js", "main.py", "main.ts", "main.rs",
 		"index.js", "index.ts", "index.html", "index.py",
 		"app.go", "app.js", "app.py", "app.ts",
 		"package.json", "go.mod", "requirements.txt", "Cargo.toml",
-		"README.md", "LICENSE", "Makefile",
+		"README.md", "LICENSE",
 	}
 
 	for _, essential := range essentialFiles {
@@ -515,6 +725,37 @@ func (ugc *UltimateGoalController) isEssentialFile(filename string) bool {
 	}
 
 	// Análise baseada nas palavras-chave do objetivo
+	return ugc.isKeywordRelatedFile(filename)
+}
+
+// isMinimalEssentialFile determina se um arquivo é essencial para projetos mínimos
+func (ugc *UltimateGoalController) isMinimalEssentialFile(filename string) bool {
+	// Para projetos mínimos, apenas arquivos absolutamente necessários
+	absoluteEssentials := []string{
+		"main.go", "main.js", "main.py", "main.ts", "main.rs",
+		"index.js", "index.ts", "index.py",
+		"app.go", "app.js", "app.py", "app.ts",
+		"go.mod", "package.json", "requirements.txt", "Cargo.toml",
+		"README.md",
+	}
+
+	for _, essential := range absoluteEssentials {
+		if filename == essential {
+			return true
+		}
+	}
+
+	// Para projetos mínimos, não incluir arquivos adicionais baseados em palavras-chave
+	// a menos que seja explicitamente necessário
+	return ugc.isExplicitlyRequired(filename)
+}
+
+// isKeywordRelatedFile verifica se o arquivo está relacionado às palavras-chave do objetivo
+func (ugc *UltimateGoalController) isKeywordRelatedFile(filename string) bool {
+	if len(ugc.Keywords) == 0 {
+		return false
+	}
+
 	lowerFilename := strings.ToLower(filename)
 	for _, keyword := range ugc.Keywords {
 		if strings.Contains(lowerFilename, keyword) {
@@ -525,9 +766,24 @@ func (ugc *UltimateGoalController) isEssentialFile(filename string) bool {
 	return false
 }
 
+// isExplicitlyRequired verifica se um arquivo é explicitamente necessário
+func (ugc *UltimateGoalController) isExplicitlyRequired(filename string) bool {
+	for _, required := range ugc.RequiredFiles {
+		if filename == required || strings.Contains(filename, required) {
+			return true
+		}
+	}
+	return false
+}
+
 // isEssentialDir determina se um diretório é essencial para o objetivo
 func (ugc *UltimateGoalController) isEssentialDir(dirname string) bool {
-	// Diretórios sempre essenciais
+	// Para projetos com escopo mínimo, ser extremamente seletivo
+	if ugc.Scope == "minimal" {
+		return ugc.isMinimalEssentialDir(dirname)
+	}
+
+	// Diretórios sempre essenciais para projetos normais
 	essentialDirs := []string{
 		"src", "lib", "pkg", "cmd", "api", "main",
 	}
@@ -539,6 +795,35 @@ func (ugc *UltimateGoalController) isEssentialDir(dirname string) bool {
 	}
 
 	// Análise baseada nas palavras-chave do objetivo
+	return ugc.isKeywordRelatedDir(dirname)
+}
+
+// isMinimalEssentialDir determina se um diretório é essencial para projetos mínimos
+func (ugc *UltimateGoalController) isMinimalEssentialDir(dirname string) bool {
+	// Para projetos mínimos, evitar diretórios desnecessários
+	// A maioria dos projetos mínimos pode funcionar sem diretórios adicionais
+
+	// Apenas diretórios absolutamente necessários
+	absoluteEssentials := []string{
+		"src", "main", // Apenas se realmente necessário
+	}
+
+	for _, essential := range absoluteEssentials {
+		if dirname == essential {
+			// Verificar se é explicitamente necessário
+			return ugc.isExplicitlyRequiredDir(dirname)
+		}
+	}
+
+	return false
+}
+
+// isKeywordRelatedDir verifica se o diretório está relacionado às palavras-chave do objetivo
+func (ugc *UltimateGoalController) isKeywordRelatedDir(dirname string) bool {
+	if len(ugc.Keywords) == 0 {
+		return false
+	}
+
 	lowerDirname := strings.ToLower(dirname)
 	for _, keyword := range ugc.Keywords {
 		if strings.Contains(lowerDirname, keyword) {
@@ -546,6 +831,16 @@ func (ugc *UltimateGoalController) isEssentialDir(dirname string) bool {
 		}
 	}
 
+	return false
+}
+
+// isExplicitlyRequiredDir verifica se um diretório é explicitamente necessário
+func (ugc *UltimateGoalController) isExplicitlyRequiredDir(dirname string) bool {
+	for _, required := range ugc.RequiredDirs {
+		if dirname == required || strings.Contains(dirname, required) {
+			return true
+		}
+	}
 	return false
 }
 
