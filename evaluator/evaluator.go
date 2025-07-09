@@ -62,6 +62,7 @@ const (
 	CategorySecurity        Category = "security"
 	CategoryPerformance     Category = "performance"
 	CategoryMaintainability Category = "maintainability"
+	CategoryBestPractice    Category = "best_practice"
 
 	// Níveis de qualidade
 	QualityExcellent QualityLevel = "excellent"

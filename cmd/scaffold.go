@@ -307,6 +307,60 @@ Exemplos:
 			plugins.ExecutePlugins()
 			fmt.Println(" ✅")
 		}
+		// INTEGRAÇÃO DOS SISTEMAS INTELIGENTES
+		fmt.Print("🧠 Registrando aprendizado...")
+
+		// 1. Registrar sessão no sistema de aprendizado
+		learningPath := ai.GetLearningDirectory()
+		ai.EnsureDirectoryExists(learningPath)
+		learningSystem := ai.NewLearningSystem(learningPath)
+
+		currentDir, _ := os.Getwd()
+		session := ai.GenerationSession{
+			ID:          fmt.Sprintf("session_%d", time.Now().Unix()),
+			Timestamp:   startTime,
+			Language:    language,
+			ProjectType: ai.DetectProjectTypeFromPath(currentDir),
+			Description: description,
+			Success:     err == nil,
+			Duration:    time.Since(startTime),
+			TokensUsed:  0, // TODO: implementar contagem de tokens
+			Provider:    aiProvider,
+			LayeredMode: false, // TODO: detectar se foi usado modo em camadas
+			Quality:     1.0,   // TODO: obter qualidade da avaliação
+			UserRating:  0,     // Será preenchido pelo feedback
+			Feedback:    "",
+			Patterns:    []string{},
+			Adaptations: make(map[string]interface{}),
+			Context: ai.SessionContext{
+				PrimaryLanguage: language,
+				HasLLMsFile:     llmsContext.HasLLMsFile,
+				UserIntent:      description,
+			},
+			Outcomes: ai.GenerationOutcomes{
+				ExecutionTime: time.Since(startTime).Seconds(),
+			},
+			Improvements: []string{},
+		}
+		learningSystem.RecordSession(session)
+
+		// 2. Atualizar cache inteligente com a resposta
+		if err == nil {
+			cachePath := ai.GetCacheDirectory()
+			ai.EnsureDirectoryExists(cachePath)
+			cache := ai.NewIntelligentCache(cachePath, 1024*1024*100) // 100MB
+
+			cacheRequest := ai.CacheRequest{
+				Language:    language,
+				ProjectType: ai.DetectProjectTypeFromPath(currentDir),
+				Description: description,
+				Context:     make(map[string]interface{}),
+			}
+
+			cache.Put(cacheRequest, response, 1.0) // Qualidade alta se passou na avaliação
+		}
+
+		fmt.Println(" ✅")
 
 		elapsedTime := time.Since(startTime)
 
