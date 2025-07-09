@@ -162,43 +162,72 @@ type LayerPlan struct {
 // planLayers determina quais camadas criar baseado no projeto
 func (lg *LayeredGenerator) planLayers() ([]LayerPlan, error) {
 	// Construir prompt adaptativo usando o controlador de instruções
-	basePrompt := fmt.Sprintf(`Analise este projeto e determine as camadas de desenvolvimento necessárias:
+	basePrompt := fmt.Sprintf(`SISTEMA CAMALEÃO - PLANEJAMENTO ADAPTATIVO DE CAMADAS
 
-PROJETO: %s
-LINGUAGEM: %s
-DESCRIÇÃO: %s
+🎯 CONTEXTO DO PROJETO:
+- NOME: %s
+- LINGUAGEM: %s
+- OBJETIVO FINAL: %s
 
-IMPORTANTE: Siga rigorosamente as instruções de escopo e restrições especificadas.
+🎭 MISSÃO CAMALEÃO:
+Analise o projeto e determine as camadas MÍNIMAS necessárias para atingir o objetivo final.
+ADAPTE-SE ao contexto específico. Seja um camaleão que:
+- MUDA sua estrutura baseada no propósito
+- ELIMINA camadas desnecessárias
+- MANTÉM foco no objetivo final
+- PRIORIZA funcionalidade sobre estrutura
 
-Retorne um JSON com as camadas em ordem de prioridade:
+IMPORTANTE: Siga rigorosamente as instruções de escopo e restrições.
+
+📋 FORMATO DE RESPOSTA:
 {
   "layers": [
     {
       "name": "nome-da-camada",
-      "description": "descrição da camada",
+      "description": "descrição específica da camada",
       "priority": 1,
       "focus": ["elemento1", "elemento2"]
     }
   ]
 }
 
-REGRAS DE PLANEJAMENTO:
-- Máximo 6 camadas
-- Cada camada deve ter foco específico (core, config, api, frontend, tests, docs)
-- Prioridade 1 = mais importante
-- Focus deve listar os elementos principais da camada
-- Adapte as camadas ao propósito específico do projeto`, lg.projectName, lg.language, lg.description)
+🎪 REGRAS DE PLANEJAMENTO CAMALEÃO:
+- Máximo 6 camadas (menos é melhor)
+- Cada camada deve ter foco específico e justificado
+- Prioridade 1 = mais crítica para o objetivo
+- Focus deve listar elementos essenciais da camada
+- ELIMINE camadas desnecessárias para o propósito
+- ADAPTE as camadas ao contexto específico do projeto
+- MANTENHA consistência com o objetivo final declarado`, lg.projectName, lg.language, lg.description)
 
 	// Aplicar controle adaptativo de instruções
 	adaptivePrompt := lg.instructionController.BuildAdaptivePrompt(basePrompt)
 
-	// Adicionar contexto se disponível, mas limitado
+	// Adicionar contexto se disponível, mas limitado e relevante
 	if lg.llmsContext != nil && lg.llmsContext.HasLLMsFile {
 		contextSummary := lg.llmsContext.GetProjectDescription()
-		if len(contextSummary) > 1000 {
-			contextSummary = contextSummary[:1000] + "... (resumido)"
+		if len(contextSummary) > 1200 {
+			// Extrair apenas partes mais relevantes
+			lines := strings.Split(contextSummary, "\n")
+			relevantLines := make([]string, 0)
+
+			for _, line := range lines {
+				if strings.Contains(strings.ToLower(line), "objetivo") ||
+					strings.Contains(strings.ToLower(line), "propósito") ||
+					strings.Contains(strings.ToLower(line), "funcionalidade") ||
+					strings.Contains(strings.ToLower(line), "requisito") ||
+					strings.Contains(strings.ToLower(line), "feature") {
+					relevantLines = append(relevantLines, line)
+				}
+			}
+
+			if len(relevantLines) > 0 {
+				contextSummary = strings.Join(relevantLines, "\n")
+			} else {
+				contextSummary = contextSummary[:1200]
+			}
 		}
-		adaptivePrompt += fmt.Sprintf("\n\nCONTEXTO ADICIONAL:\n%s", contextSummary)
+		adaptivePrompt += fmt.Sprintf("\n\n📝 CONTEXTO RELEVANTE:\n%s", contextSummary)
 	}
 
 	response, err := lg.provider.GenerateContent(adaptivePrompt)
@@ -209,17 +238,23 @@ REGRAS DE PLANEJAMENTO:
 	// Validar conformidade com as instruções
 	compliance, err := lg.instructionController.ValidateInstructionCompliance(response)
 	if err != nil {
-		fmt.Printf("⚠️  Erro ao validar conformidade: %v\n", err)
+		fmt.Printf("⚠️  Erro ao validar conformidade do planejamento: %v\n", err)
 	} else if !compliance.IsCompliant {
-		fmt.Printf("⚠️  Planejamento não conforme (score: %.1f%%):\n", compliance.ComplianceScore)
+		fmt.Printf("🔴 Planejamento NÃO CONFORME (score: %.1f%%):\n", compliance.ComplianceScore)
 		for _, violation := range compliance.ViolatedRules {
-			fmt.Printf("   • Violação: %s\n", violation)
+			fmt.Printf("   • ⚠️  Violação: %s\n", violation)
 		}
 		for _, missing := range compliance.MissingRequirements {
-			fmt.Printf("   • Faltando: %s\n", missing)
+			fmt.Printf("   • ❌ Faltando: %s\n", missing)
+		}
+
+		// Se muito baixo, usar fallback
+		if compliance.ComplianceScore < 30 {
+			fmt.Printf("🚨 Score muito baixo, usando planejamento adaptativo fallback...\n")
+			return lg.getDefaultLayersWithAdaptation(), nil
 		}
 	} else {
-		fmt.Printf("✅ Planejamento conforme (score: %.1f%%)\n", compliance.ComplianceScore)
+		fmt.Printf("✅ Planejamento CONFORME - Sistema Camaleão validou (score: %.1f%%)\n", compliance.ComplianceScore)
 	}
 
 	// Extrair JSON da resposta
@@ -230,20 +265,115 @@ REGRAS DE PLANEJAMENTO:
 	}
 
 	if err := json.Unmarshal([]byte(jsonContent), &planResponse); err != nil {
-		// Fallback para camadas padrão se o parsing falhar
+		fmt.Printf("⚠️  Erro ao processar JSON do planejamento, usando fallback adaptativo...\n")
 		return lg.getDefaultLayersWithAdaptation(), nil
 	}
+
+	// Validar se as camadas fazem sentido
+	if len(planResponse.Layers) == 0 {
+		fmt.Printf("⚠️  Nenhuma camada planejada, usando fallback adaptativo...\n")
+		return lg.getDefaultLayersWithAdaptation(), nil
+	}
+
+	// Validar e filtrar camadas baseado no contexto
+	validatedLayers := lg.validateAndFilterLayers(planResponse.Layers)
 
 	// Ordenar por prioridade
-	sort.Slice(planResponse.Layers, func(i, j int) bool {
-		return planResponse.Layers[i].Priority < planResponse.Layers[j].Priority
+	sort.Slice(validatedLayers, func(i, j int) bool {
+		return validatedLayers[i].Priority < validatedLayers[j].Priority
 	})
 
-	if len(planResponse.Layers) == 0 {
-		return lg.getDefaultLayersWithAdaptation(), nil
+	return validatedLayers, nil
+}
+
+// validateAndFilterLayers valida e filtra camadas baseado no contexto
+func (lg *LayeredGenerator) validateAndFilterLayers(layers []LayerPlan) []LayerPlan {
+	profile := lg.instructionController.GetInstructionProfile()
+	validatedLayers := make([]LayerPlan, 0)
+
+	// Limitar número de camadas baseado no escopo
+	maxLayers := 6
+	if profile.ScopeControl == "minimal" {
+		maxLayers = 3
+	} else if profile.ScopeControl == "comprehensive" {
+		maxLayers = 6
 	}
 
-	return planResponse.Layers, nil
+	// Camadas essenciais que sempre devem existir
+	coreFound := false
+
+	for _, layer := range layers {
+		// Verificar se a camada é válida para o contexto
+		if lg.isLayerValidForContext(layer) {
+			validatedLayers = append(validatedLayers, layer)
+
+			if layer.Name == "core" {
+				coreFound = true
+			}
+		}
+
+		// Limitar número máximo de camadas
+		if len(validatedLayers) >= maxLayers {
+			break
+		}
+	}
+
+	// Garantir que sempre há uma camada core
+	if !coreFound {
+		coreLayer := LayerPlan{
+			Name:        "core",
+			Description: "Estrutura básica e configurações essenciais",
+			Priority:    1,
+			Focus:       []string{"main", "config", "setup"},
+		}
+		validatedLayers = append([]LayerPlan{coreLayer}, validatedLayers...)
+	}
+
+	return validatedLayers
+}
+
+// isLayerValidForContext verifica se uma camada é válida para o contexto atual
+func (lg *LayeredGenerator) isLayerValidForContext(layer LayerPlan) bool {
+	// Verificar exclusões explícitas
+	if lg.instructionController.Adaptations["exclude_tests"] == true &&
+		strings.Contains(strings.ToLower(layer.Name), "test") {
+		return false
+	}
+
+	if lg.instructionController.Adaptations["exclude_docker"] == true &&
+		(strings.Contains(strings.ToLower(layer.Name), "deploy") ||
+			strings.Contains(strings.ToLower(layer.Name), "docker")) {
+		return false
+	}
+
+	if lg.instructionController.Adaptations["exclude_frontend"] == true &&
+		strings.Contains(strings.ToLower(layer.Name), "frontend") {
+		return false
+	}
+
+	if lg.instructionController.Adaptations["exclude_api"] == true &&
+		strings.Contains(strings.ToLower(layer.Name), "api") {
+		return false
+	}
+
+	if lg.instructionController.Adaptations["exclude_database"] == true &&
+		(strings.Contains(strings.ToLower(layer.Name), "database") ||
+			strings.Contains(strings.ToLower(layer.Name), "data")) {
+		return false
+	}
+
+	// Para escopo mínimo, permitir apenas camadas essenciais
+	if lg.instructionController.Scope == "minimal" {
+		essentialLayers := []string{"core", "business", "main"}
+		for _, essential := range essentialLayers {
+			if strings.Contains(strings.ToLower(layer.Name), essential) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
 }
 
 // getDefaultLayersWithAdaptation retorna camadas padrão adaptadas ao contexto
@@ -363,19 +493,27 @@ func (lg *LayeredGenerator) generateLayer(plan LayerPlan, previousLayers []Layer
 func (lg *LayeredGenerator) buildLayerPrompt(plan LayerPlan, previousLayers []LayerResult) string {
 	var prompt strings.Builder
 
-	// Prompt base para a camada
-	basePrompt := fmt.Sprintf(`Gere EXCLUSIVAMENTE a camada "%s" para o projeto:
+	// Prompt base para a camada com foco no objetivo final
+	basePrompt := fmt.Sprintf(`SISTEMA CAMALEÃO - GERAÇÃO ADAPTATIVA DE CAMADA
 
-PROJETO: %s
-LINGUAGEM: %s
-DESCRIÇÃO GERAL: %s
+CONTEXTO DO PROJETO:
+- NOME: %s
+- LINGUAGEM: %s
+- OBJETIVO FINAL: %s
 
-CAMADA ATUAL - FOQUE APENAS NISTO:
-Nome: %s
-Descrição: %s
-Elementos desta camada: %v
+CAMADA ATUAL - FOCO ABSOLUTO:
+- Nome: %s
+- Descrição: %s
+- Elementos específicos: %v
 
-IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
+INSTRUÇÃO CRÍTICA - PRINCÍPIO CAMALEÃO:
+Esta camada deve conter EXCLUSIVAMENTE arquivos relacionados a: %s
+
+ADAPTE-SE precisamente ao contexto e propósito. Seja um camaleão que:
+- MUDA sua estrutura baseada no objetivo final
+- ELIMINA componentes desnecessários
+- MANTÉM consistência e coerência
+- FOCA no valor entregue
 
 `, lg.projectName, lg.language, lg.description, plan.Name, plan.Description, plan.Focus, strings.Join(plan.Focus, ", "))
 
@@ -383,19 +521,24 @@ IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
 	adaptivePrompt := lg.instructionController.BuildAdaptivePrompt(basePrompt)
 	prompt.WriteString(adaptivePrompt)
 
-	// Adicionar contexto das camadas anteriores
+	// Adicionar contexto das camadas anteriores de forma mais inteligente
 	if len(previousLayers) > 0 {
-		prompt.WriteString("\nCAMADAS JÁ CRIADAS:\n")
+		prompt.WriteString("\n🔗 CONTEXTO DE CAMADAS ANTERIORES:\n")
 		allCreatedFiles := make([]string, 0)
+		layerSummary := make([]string, 0)
+
 		for _, layer := range previousLayers {
-			prompt.WriteString(fmt.Sprintf("- %s: %d arquivos\n", layer.LayerName, len(layer.Files)))
+			layerSummary = append(layerSummary, fmt.Sprintf("- %s: %d arquivos", layer.LayerName, len(layer.Files)))
 			for fileName := range layer.Files {
 				allCreatedFiles = append(allCreatedFiles, fileName)
 			}
 		}
 
+		prompt.WriteString(strings.Join(layerSummary, "\n"))
+		prompt.WriteString("\n")
+
 		if len(allCreatedFiles) > 0 {
-			prompt.WriteString("\nARQUIVOS JÁ CRIADOS (NÃO RECRIAR):\n")
+			prompt.WriteString("\n🚫 ARQUIVOS JÁ EXISTENTES (NUNCA RECRIAR):\n")
 			for _, fileName := range allCreatedFiles {
 				prompt.WriteString(fmt.Sprintf("- %s\n", fileName))
 			}
@@ -407,38 +550,41 @@ IMPORTANTE: Esta camada deve conter apenas arquivos relacionados a: %s
 	profile := lg.instructionController.GetInstructionProfile()
 	prompt.WriteString(lg.buildLayerSpecificInstructions(plan, profile))
 
-	// Adicionar contexto limitado do projeto
+	// Adicionar contexto limitado do projeto com inteligência
 	if lg.llmsContext != nil && lg.llmsContext.HasLLMsFile {
 		summary := lg.llmsContext.GetProjectDescription()
-		if len(summary) > 500 {
-			summary = summary[:500] + "..."
+		if len(summary) > 800 {
+			// Extrair apenas partes relevantes para esta camada
+			summary = lg.extractRelevantContext(summary, plan)
 		}
-		prompt.WriteString(fmt.Sprintf("CONTEXTO DO PROJETO:\n%s\n\n", summary))
+		prompt.WriteString(fmt.Sprintf("📋 CONTEXTO RELEVANTE DO PROJETO:\n%s\n\n", summary))
 	}
 
-	prompt.WriteString(`FORMATO DE SAÍDA OBRIGATÓRIO:
+	prompt.WriteString(`📝 FORMATO DE SAÍDA OBRIGATÓRIO:
 {
   "layer_name": "` + plan.Name + `",
-  "description": "descrição da camada implementada",
-  "directories": ["lista", "de", "diretórios"],
+  "description": "descrição específica da camada implementada",
+  "directories": ["lista", "de", "diretórios", "necessários"],
   "files": {
     "arquivo.ext": {
-      "content": "conteúdo do arquivo"
+      "content": "conteúdo funcional e realista"
     }
   },
-  "dependencies": ["deps", "necessárias"],
-  "next_steps": ["próximos", "passos"]
+  "dependencies": ["apenas", "deps", "essenciais"],
+  "next_steps": ["próximos", "passos", "específicos"]
 }
 
-INSTRUÇÕES FINAIS:
-1. Foque APENAS nos elementos desta camada especificados acima
-2. NÃO recrie NENHUM arquivo listado como "JÁ CRIADOS"
-3. Se um arquivo já existe, NÃO o inclua nesta camada
-4. Crie apenas arquivos novos específicos desta camada
-5. Use conteúdo realista e funcional
-6. Mantenha coerência com o projeto
-7. Retorne apenas JSON válido
-8. OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições`)
+⚡ INSTRUÇÕES FINAIS - MODO CAMALEÃO:
+1. 🎯 FOQUE EXCLUSIVAMENTE nos elementos desta camada: ` + strings.Join(plan.Focus, ", ") + `
+2. 🚫 NUNCA recrie arquivos listados como "JÁ EXISTENTES"
+3. 📂 Se um arquivo já existe, PULE e NÃO o inclua nesta camada
+4. ✨ Crie APENAS arquivos novos específicos e necessários
+5. 💡 Use conteúdo realista, funcional e diretamente relacionado ao objetivo
+6. 🔗 Mantenha coerência total com o projeto e camadas anteriores
+7. 📄 Retorne APENAS JSON válido e bem formatado
+8. 🎭 ADAPTE-SE como um camaleão: mude baseado no contexto específico
+9. 🚀 PRIORIZE funcionalidade sobre estrutura elaborada desnecessária
+10. 🎪 OBEDEÇA RIGOROSAMENTE às instruções de escopo e restrições`)
 
 	return prompt.String()
 }
@@ -467,99 +613,157 @@ Apenas arquivos essenciais da camada.`, plan.Name, lg.projectName, lg.language, 
 func (lg *LayeredGenerator) buildLayerSpecificInstructions(plan LayerPlan, profile InstructionProfile) string {
 	var instructions strings.Builder
 
-	// Instruções base por camada
+	// Instruções base por camada com foco adaptativo
+	instructions.WriteString(fmt.Sprintf("🎯 INSTRUÇÕES ESPECÍFICAS - CAMADA %s:\n", strings.ToUpper(plan.Name)))
+
 	switch plan.Name {
 	case "core":
-		instructions.WriteString(`CAMADA CORE - CRIE APENAS:
-- Arquivo principal (index.js, main.js, app.js)
-- package.json com dependências
-- Configurações básicas (.env.example, config files)
-- Estrutura de diretórios básica
+		instructions.WriteString(`
+CAMADA CORE - FUNDAÇÃO ADAPTATIVA:
+✅ CRIE APENAS:
+- Arquivo principal/entry point (main.js, index.js, app.js, main.go)
+- Configurações essenciais (package.json, go.mod, requirements.txt)
+- Variáveis de ambiente (.env.example)
+- Estrutura básica de diretórios
+- Configurações core do projeto
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie testes, rotas específicas ou lógica de negócio complexa\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: documentação extensa, exemplos, testes, middleware, rotas específicas\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: logging básico, error handling, configurações avançadas\n")
 		} else {
-			instructions.WriteString("NÃO crie testes, rotas específicas ou lógica de negócio (outras camadas)\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: configurações básicas, error handling simples\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Adapte a estrutura core baseada no propósito específico do projeto\n")
 
 	case "business":
-		instructions.WriteString(`CAMADA BUSINESS - CRIE APENAS:
-- Modelos de dados (models/)
-- Serviços de negócio (services/)
-- Utilitários (utils/)
+		instructions.WriteString(`
+CAMADA BUSINESS - LÓGICA ADAPTATIVA:
+✅ CRIE APENAS:
+- Modelos de dados (models/ ou types/)
+- Serviços de negócio (services/ ou business/)
+- Utilitários específicos (utils/ ou helpers/)
+- Interfaces e contratos
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie testes, rotas HTTP, configurações ou features avançadas\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: middleware complexo, validações extensas, padrões avançados\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: validações robustas, padrões de design, error handling específico\n")
 		} else {
-			instructions.WriteString("- Middleware de negócio\nNÃO crie testes, rotas HTTP ou configurações\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: validações básicas, error handling essencial\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Modele a lógica baseada no domínio específico do projeto\n")
 
 	case "api":
-		instructions.WriteString(`CAMADA API - CRIE APENAS:
-- Controladores (controllers/)
-- Rotas HTTP (routes/)
+		instructions.WriteString(`
+CAMADA API - INTERFACE ADAPTATIVA:
+✅ CRIE APENAS:
+- Controladores/handlers (controllers/ ou handlers/)
+- Rotas HTTP (routes/ ou endpoints/)
+- Middleware de API
+- Validadores de entrada
+- Serializadores/formatadores
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie testes, modelos, configurações ou middleware avançado\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: documentação API extensa, middleware complexo, rate limiting\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: documentação OpenAPI, middleware avançado, rate limiting\n")
 		} else {
-			instructions.WriteString("- Middleware de API\n- Validadores de entrada\nNÃO crie testes, modelos ou configurações\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: middleware básico, validação de entrada\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Defina endpoints baseados nos requisitos específicos do projeto\n")
 
 	case "frontend":
-		instructions.WriteString(`CAMADA FRONTEND - CRIE APENAS:
+		instructions.WriteString(`
+CAMADA FRONTEND - INTERFACE VISUAL ADAPTATIVA:
+✅ CRIE APENAS:
 - Componentes de interface (components/)
-- Páginas/views (pages/)
+- Páginas/views (pages/ ou views/)
+- Estilos (styles/ ou css/)
+- Assets básicos (images/, icons/)
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie testes, assets complexos ou funcionalidades avançadas\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: animações complexas, múltiplos temas, assets pesados\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: sistema de temas, animações, responsividade avançada\n")
 		} else {
-			instructions.WriteString("- Estilos (styles/)\n- Assets básicos\nNÃO crie testes ou lógica de backend\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: responsividade básica, estilos organizados\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Crie interface baseada no público-alvo e propósito do projeto\n")
 
 	case "tests":
-		instructions.WriteString(`CAMADA TESTS - CRIE APENAS:
-- Arquivos de teste (.test.js, .spec.js)
-- Configuração de testes
+		instructions.WriteString(`
+CAMADA TESTS - VALIDAÇÃO ADAPTATIVA:
+✅ CRIE APENAS:
+- Testes unitários (.test.js, .spec.js, _test.go)
+- Configuração de testes (jest.config.js, vitest.config.js)
+- Mocks e fixtures (mocks/, fixtures/)
+- Helpers de teste (test-utils/)
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie mocks complexos ou testes de integração avançados\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: testes e2e, coverage complexo, múltiplos frameworks\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: testes e2e, coverage reports, performance tests\n")
 		} else {
-			instructions.WriteString("- Mocks e fixtures\n- Scripts de teste\nNÃO crie código de produção\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: testes unitários essenciais, basic coverage\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Teste apenas o que é crítico para o funcionamento do projeto\n")
 
 	case "deployment":
-		instructions.WriteString(`CAMADA DEPLOYMENT - CRIE APENAS:
-- Dockerfile
-- docker-compose.yml
+		instructions.WriteString(`
+CAMADA DEPLOYMENT - INFRAESTRUTURA ADAPTATIVA:
+✅ CRIE APENAS:
+- Dockerfile (se containerização necessária)
+- docker-compose.yml (se ambiente local necessário)
+- Scripts de deploy (deploy.sh, deploy.yml)
+- Configurações de CI/CD (.github/workflows/, .gitlab-ci.yml)
 `)
 		if profile.ScopeControl == "minimal" {
-			instructions.WriteString("NÃO crie configurações de CI/CD complexas ou scripts avançados\n")
+			instructions.WriteString("❌ MODO MÍNIMO - NÃO CRIE: orquestração complexa, múltiplos ambientes, scripts avançados\n")
+		} else if profile.ScopeControl == "comprehensive" {
+			instructions.WriteString("✅ MODO COMPLETO - ADICIONE: múltiplos ambientes, monitoring, backup strategies\n")
 		} else {
-			instructions.WriteString("- Configuração de CI/CD básica\n- Scripts de deploy\nNÃO crie código de aplicação\n")
+			instructions.WriteString("⚖️ MODO PADRÃO - INCLUA: configuração básica de produção\n")
 		}
+		instructions.WriteString("🎭 CAMALEÃO: Configure deployment baseado no ambiente de destino do projeto\n")
 
 	default:
-		instructions.WriteString(fmt.Sprintf(`CAMADA %s - CRIE APENAS:
-- Arquivos relacionados a: %s
-NÃO crie arquivos de outras camadas ou funcionalidades não relacionadas
+		instructions.WriteString(fmt.Sprintf(`
+CAMADA %s - IMPLEMENTAÇÃO ADAPTATIVA:
+✅ CRIE APENAS:
+- Arquivos diretamente relacionados a: %s
+- Funcionalidades específicas desta camada
+- Configurações necessárias para o funcionamento
 `, strings.ToUpper(plan.Name), strings.Join(plan.Focus, ", ")))
+		instructions.WriteString("🎭 CAMALEÃO: Adapte completamente baseado no contexto específico\n")
 	}
 
-	// Adicionar adaptações específicas
+	// Adicionar adaptações específicas baseadas no contexto
 	if profile.StrictnessLevel >= 8 {
-		instructions.WriteString("\nMODO RÍGIDO ATIVADO:\n")
-		instructions.WriteString("- Seja extremamente específico ao escopo definido\n")
+		instructions.WriteString("\n🔒 MODO ULTRA-RESTRITIVO ATIVADO:\n")
+		instructions.WriteString("- Seja extremamente seletivo - apenas o ABSOLUTAMENTE essencial\n")
 		instructions.WriteString("- Rejeite qualquer tentativa de adicionar recursos extras\n")
-		instructions.WriteString("- Foque apenas no essencial para esta camada\n")
+		instructions.WriteString("- Cada arquivo deve ter justificativa CLARA e ESPECÍFICA\n")
+		instructions.WriteString("- Priorize funcionalidade direta sobre estrutura elaborada\n")
 	}
 
 	// Adicionar restrições específicas por adaptação
 	if lg.instructionController.Scope == "minimal" {
-		instructions.WriteString("\nRESTRIÇÕES DE ESCOPO MÍNIMO:\n")
-		instructions.WriteString("- Evite qualquer funcionalidade não essencial\n")
-		instructions.WriteString("- Mantenha arquivos simples e diretos\n")
-		instructions.WriteString("- Não adicione comentários extensos ou documentação elaborada\n")
-		instructions.WriteString("- Foque apenas no que é absolutamente necessário\n")
+		instructions.WriteString("\n⚡ RESTRIÇÕES DE ESCOPO ULTRA-MÍNIMO:\n")
+		instructions.WriteString("- Evite QUALQUER funcionalidade não essencial\n")
+		instructions.WriteString("- Mantenha arquivos simples, diretos e focados\n")
+		instructions.WriteString("- NÃO adicione comentários extensos ou documentação elaborada\n")
+		instructions.WriteString("- Foque APENAS no que é absolutamente necessário para o funcionamento\n")
+		instructions.WriteString("- Elimine qualquer abstração desnecessária\n")
+	}
+
+	// Adaptações específicas baseadas no projeto
+	if lg.instructionController.Adaptations["chameleon_focus"] == true {
+		instructions.WriteString("\n🎯 FOCO CAMALEÃO LASER ATIVADO:\n")
+		instructions.WriteString("- CONCENTRE-SE exclusivamente no objetivo final desta camada\n")
+		instructions.WriteString("- ELIMINE qualquer elemento que não contribua diretamente\n")
+		instructions.WriteString("- ADAPTE estrutura e conteúdo ao propósito específico\n")
+		instructions.WriteString("- MANTENHA coerência absoluta com o objetivo do projeto\n")
 	}
 
 	return instructions.String()
@@ -574,62 +778,141 @@ func (lg *LayeredGenerator) parseLayerResponse(layerName, response string) (*Lay
 	if err != nil {
 		fmt.Printf("⚠️  Erro ao validar conformidade da camada %s: %v\n", layerName, err)
 	} else if !compliance.IsCompliant {
-		fmt.Printf("⚠️  Camada %s não conforme (score: %.1f%%):\n", layerName, compliance.ComplianceScore)
+		fmt.Printf("🔴 Camada %s NÃO CONFORME (score: %.1f%%):\n", layerName, compliance.ComplianceScore)
 		for _, violation := range compliance.ViolatedRules {
-			fmt.Printf("   • Violação: %s\n", violation)
+			fmt.Printf("   • ⚠️  Violação: %s\n", violation)
 		}
 		for _, missing := range compliance.MissingRequirements {
-			fmt.Printf("   • Faltando: %s\n", missing)
+			fmt.Printf("   • ❌ Faltando: %s\n", missing)
 		}
 		for _, deviation := range compliance.ScopeDeviations {
-			fmt.Printf("   • Desvio de escopo: %s\n", deviation)
+			fmt.Printf("   • 🚫 Desvio de escopo: %s\n", deviation)
 		}
 
 		// Se o nível de rigidez for alto, falhar em caso de não conformidade
 		profile := lg.instructionController.GetInstructionProfile()
 		if profile.StrictnessLevel >= 8 && compliance.ComplianceScore < profile.QualityThreshold {
-			return nil, fmt.Errorf("camada %s rejeitada por não conformidade (score: %.1f%%, required: %.1f%%)",
+			return nil, fmt.Errorf("🚨 CAMADA %s REJEITADA - Não conformidade crítica (score: %.1f%%, requerido: %.1f%%). Sistema Camaleão detectou incompatibilidade com objetivo final",
 				layerName, compliance.ComplianceScore, profile.QualityThreshold)
 		}
+
+		// Para níveis menores, mostrar avisos mas continuar
+		fmt.Printf("⚠️  Continuando com avisos (modo tolerante)...\n")
 	} else {
-		fmt.Printf("✅ Camada %s conforme (score: %.1f%%)\n", layerName, compliance.ComplianceScore)
+		fmt.Printf("✅ Camada %s CONFORME - Sistema Camaleão validou (score: %.1f%%)\n", layerName, compliance.ComplianceScore)
 	}
 
 	// Validar a estrutura da camada
 	validation := ValidateProjectStructure(jsonContent, lg.language)
 	if !validation.IsValid {
-		fmt.Printf("⚠️  Camada %s apresenta problemas estruturais:\n", layerName)
+		fmt.Printf("🔴 Camada %s apresenta problemas estruturais:\n", layerName)
 		for _, issue := range validation.Issues {
-			fmt.Printf("   • %s\n", issue)
+			fmt.Printf("   • ⚠️  %s\n", issue)
 		}
-		fmt.Printf("📊 Pontuação de qualidade: %.1f/100\n", validation.Score)
+		fmt.Printf("📊 Pontuação estrutural: %.1f/100\n", validation.Score)
 
 		// Se o score for muito baixo, falhar
-		if validation.Score < 40 {
-			return nil, fmt.Errorf("camada %s não passou na validação estrutural (score: %.1f/100)", layerName, validation.Score)
+		if validation.Score < 30 {
+			return nil, fmt.Errorf("🚨 CAMADA %s REJEITADA - Falha estrutural crítica (score: %.1f/100). Sistema Camaleão detectou estrutura inadequada para o objetivo", layerName, validation.Score)
 		}
 
-		// Caso contrário, mostrar avisos mas continuar
-		fmt.Printf("⚠️  Continuando com avisos...\n")
+		// Para scores baixos mas não críticos, mostrar avisos
+		if validation.Score < 60 {
+			fmt.Printf("⚠️  Continuando com avisos estruturais...\n")
+		}
 	} else {
-		fmt.Printf("✅ Camada %s validada estruturalmente com sucesso (score: %.1f/100)\n", layerName, validation.Score)
+		fmt.Printf("✅ Camada %s estruturalmente válida (score: %.1f/100)\n", layerName, validation.Score)
 		if len(validation.Suggestions) > 0 {
 			fmt.Printf("💡 Sugestões de melhoria para camada %s:\n", layerName)
 			for _, suggestion := range validation.Suggestions {
-				fmt.Printf("   • %s\n", suggestion)
+				fmt.Printf("   • 💡 %s\n", suggestion)
 			}
 		}
 	}
 
+	// Processar JSON
 	var layerResult LayerResult
 	if err := json.Unmarshal([]byte(jsonContent), &layerResult); err != nil {
-		return nil, fmt.Errorf("erro ao processar resposta da camada %s: %v", layerName, err)
+		return nil, fmt.Errorf("🚨 ERRO ao processar JSON da camada %s: %v", layerName, err)
 	}
 
 	// Garantir que o nome da camada está correto
 	layerResult.LayerName = layerName
 
+	// Validação adicional específica do sistema camaleão
+	if err := lg.validateChameleonCompliance(&layerResult); err != nil {
+		return nil, fmt.Errorf("🚨 CAMADA %s REJEITADA - Falha na validação Camaleão: %v", layerName, err)
+	}
+
 	return &layerResult, nil
+}
+
+// validateChameleonCompliance valida se a camada está em conformidade com o sistema camaleão
+func (lg *LayeredGenerator) validateChameleonCompliance(layer *LayerResult) error {
+	profile := lg.instructionController.GetInstructionProfile()
+
+	// Verificar se há arquivos desnecessários para escopo mínimo
+	if profile.ScopeControl == "minimal" {
+		if len(layer.Files) > 8 {
+			return fmt.Errorf("escopo mínimo violado: %d arquivos criados (máximo recomendado: 8)", len(layer.Files))
+		}
+
+		// Verificar se há arquivos típicos de escopo expandido
+		unnecessaryPatterns := []string{
+			"example", "sample", "demo", "template", "boilerplate",
+			"readme", "license", "changelog", "contributing", "docs",
+		}
+
+		for filename := range layer.Files {
+			for _, pattern := range unnecessaryPatterns {
+				if strings.Contains(strings.ToLower(filename), pattern) {
+					return fmt.Errorf("arquivo desnecessário para escopo mínimo: %s", filename)
+				}
+			}
+		}
+	}
+
+	// Verificar exclusões específicas
+	if lg.instructionController.Adaptations["exclude_tests"] == true {
+		for filename := range layer.Files {
+			if strings.Contains(strings.ToLower(filename), "test") ||
+				strings.Contains(strings.ToLower(filename), "spec") {
+				return fmt.Errorf("arquivo de teste encontrado apesar de exclusão explícita: %s", filename)
+			}
+		}
+	}
+
+	if lg.instructionController.Adaptations["exclude_docker"] == true {
+		for filename := range layer.Files {
+			if strings.Contains(strings.ToLower(filename), "docker") ||
+				strings.Contains(strings.ToLower(filename), "compose") {
+				return fmt.Errorf("arquivo Docker encontrado apesar de exclusão explícita: %s", filename)
+			}
+		}
+	}
+
+	// Verificar se há consistência nos nomes dos arquivos
+	if layer.LayerName == "core" {
+		hasMainFile := false
+		for filename := range layer.Files {
+			if strings.Contains(strings.ToLower(filename), "main") ||
+				strings.Contains(strings.ToLower(filename), "index") ||
+				strings.Contains(strings.ToLower(filename), "app") {
+				hasMainFile = true
+				break
+			}
+		}
+		if !hasMainFile && profile.ScopeControl != "minimal" {
+			return fmt.Errorf("camada core deve ter pelo menos um arquivo principal (main, index, app)")
+		}
+	}
+
+	// Verificar se há dependências coerentes
+	if len(layer.Dependencies) > 20 && profile.ScopeControl == "minimal" {
+		return fmt.Errorf("muitas dependências para escopo mínimo: %d (máximo recomendado: 20)", len(layer.Dependencies))
+	}
+
+	return nil
 }
 
 // countTotalFiles conta o total de arquivos em todas as camadas
@@ -745,4 +1028,65 @@ func detectProjectType(description string) string {
 
 	// Tipo padrão
 	return "general_application"
+}
+
+// extractRelevantContext extrai partes do contexto relevantes para uma camada específica
+func (lg *LayeredGenerator) extractRelevantContext(fullContext string, plan LayerPlan) string {
+	var relevantParts []string
+	contextLines := strings.Split(fullContext, "\n")
+
+	// Palavras-chave relevantes para cada camada
+	relevantKeywords := make([]string, 0)
+	relevantKeywords = append(relevantKeywords, plan.Focus...)
+	relevantKeywords = append(relevantKeywords, strings.ToLower(plan.Name))
+
+	// Adicionar palavras-chave específicas por camada
+	switch plan.Name {
+	case "core":
+		relevantKeywords = append(relevantKeywords, "main", "config", "setup", "init", "base")
+	case "business":
+		relevantKeywords = append(relevantKeywords, "logic", "service", "model", "data", "business")
+	case "api":
+		relevantKeywords = append(relevantKeywords, "route", "endpoint", "controller", "handler", "http")
+	case "frontend":
+		relevantKeywords = append(relevantKeywords, "component", "ui", "interface", "page", "view")
+	case "tests":
+		relevantKeywords = append(relevantKeywords, "test", "spec", "unit", "integration", "mock")
+	case "deployment":
+		relevantKeywords = append(relevantKeywords, "docker", "deploy", "container", "ci", "cd")
+	}
+
+	// Extrair linhas relevantes
+	for _, line := range contextLines {
+		lineLower := strings.ToLower(line)
+		for _, keyword := range relevantKeywords {
+			if strings.Contains(lineLower, strings.ToLower(keyword)) {
+				relevantParts = append(relevantParts, line)
+				break
+			}
+		}
+	}
+
+	// Se não encontrou nada relevante, retornar o início do contexto
+	if len(relevantParts) == 0 {
+		if len(fullContext) > 400 {
+			return fullContext[:400] + "... (contexto adaptado para camada " + plan.Name + ")"
+		}
+		return fullContext
+	}
+
+	// Juntar partes relevantes
+	result := strings.Join(relevantParts, "\n")
+
+	// Limitar tamanho
+	if len(result) > 600 {
+		result = result[:600] + "... (contexto adaptado para camada " + plan.Name + ")"
+	}
+
+	return result
+}
+
+// GetInstructionController retorna o controlador de instruções (para testes)
+func (lg *LayeredGenerator) GetInstructionController() *AdaptiveInstructionController {
+	return lg.instructionController
 }

@@ -51,44 +51,111 @@ func NewAdaptiveInstructionController(projectType, language, description string)
 func (aic *AdaptiveInstructionController) analyzeIntent(description string) {
 	desc := strings.ToLower(description)
 
-	// Detectar palavras-chave de escopo
-	if containsAny(desc, []string{"apenas", "somente", "só", "minimo", "básico", "simples"}) {
-		aic.Scope = "minimal"
-		aic.Constraints = append(aic.Constraints, "STRICT_MINIMAL_SCOPE")
-	} else if containsAny(desc, []string{"completo", "completa", "abrangente", "extenso", "robusto", "detalhado"}) {
-		aic.Scope = "comprehensive"
-		aic.Requirements = append(aic.Requirements, "COMPREHENSIVE_IMPLEMENTATION")
+	// Detectar palavras-chave de escopo com maior precisão
+	minimalKeywords := []string{"apenas", "somente", "só", "minimo", "básico", "simples", "essencial", "necessário", "específico", "exato", "direto", "clean", "limpo"}
+	comprehensiveKeywords := []string{"completo", "completa", "abrangente", "extenso", "robusto", "detalhado", "full", "total", "toda", "tudo", "máximo", "avançado", "profissional", "enterprise"}
+
+	minimalCount := 0
+	comprehensiveCount := 0
+
+	for _, keyword := range minimalKeywords {
+		if strings.Contains(desc, keyword) {
+			minimalCount++
+		}
 	}
 
-	// Detectar requisitos específicos
-	if containsAny(desc, []string{"api", "rest", "endpoint", "servidor"}) {
+	for _, keyword := range comprehensiveKeywords {
+		if strings.Contains(desc, keyword) {
+			comprehensiveCount++
+		}
+	}
+
+	// Determinar escopo baseado na frequência de palavras-chave
+	if minimalCount > comprehensiveCount {
+		aic.Scope = "minimal"
+		aic.Constraints = append(aic.Constraints, "STRICT_MINIMAL_SCOPE", "CHAMELEON_PRECISION")
+	} else if comprehensiveCount > minimalCount {
+		aic.Scope = "comprehensive"
+		aic.Requirements = append(aic.Requirements, "COMPREHENSIVE_IMPLEMENTATION", "CHAMELEON_COMPLETENESS")
+	}
+
+	// Detectar requisitos específicos com maior precisão
+	if containsAny(desc, []string{"api", "rest", "endpoint", "servidor", "service", "webservice", "http"}) {
 		aic.Adaptations["include_api"] = true
 		aic.Requirements = append(aic.Requirements, "API_ENDPOINTS")
 	}
 
-	if containsAny(desc, []string{"frontend", "interface", "ui", "web"}) {
+	if containsAny(desc, []string{"frontend", "interface", "ui", "web", "página", "tela", "componente", "react", "vue", "angular"}) {
 		aic.Adaptations["include_frontend"] = true
 		aic.Requirements = append(aic.Requirements, "FRONTEND_INTERFACE")
 	}
 
-	if containsAny(desc, []string{"teste", "test", "tdd", "bdd"}) {
+	if containsAny(desc, []string{"teste", "test", "tdd", "bdd", "unit", "integration", "spec", "validação"}) {
 		aic.Adaptations["include_tests"] = true
 		aic.Requirements = append(aic.Requirements, "COMPREHENSIVE_TESTING")
 	}
 
-	if containsAny(desc, []string{"docker", "container", "deployment", "deploy"}) {
+	if containsAny(desc, []string{"docker", "container", "deployment", "deploy", "kubernetes", "k8s", "ci/cd", "pipeline"}) {
 		aic.Adaptations["include_docker"] = true
 		aic.Requirements = append(aic.Requirements, "CONTAINERIZATION")
 	}
 
-	if containsAny(desc, []string{"banco", "database", "db", "persistencia"}) {
+	if containsAny(desc, []string{"banco", "database", "db", "persistencia", "storage", "dados", "sql", "nosql", "mongodb", "mysql", "postgres"}) {
 		aic.Adaptations["include_database"] = true
 		aic.Requirements = append(aic.Requirements, "DATABASE_INTEGRATION")
 	}
 
-	// Detectar exclusões explícitas
-	if containsAny(desc, []string{"sem teste", "sem test", "não teste", "sem docker", "sem banco"}) {
-		aic.Constraints = append(aic.Constraints, "EXPLICIT_EXCLUSIONS")
+	if containsAny(desc, []string{"autenticação", "auth", "login", "segurança", "security", "jwt", "oauth", "session"}) {
+		aic.Adaptations["include_auth"] = true
+		aic.Requirements = append(aic.Requirements, "AUTHENTICATION_SYSTEM")
+	}
+
+	if containsAny(desc, []string{"cli", "command", "linha de comando", "terminal", "script", "tool", "ferramenta"}) {
+		aic.Adaptations["include_cli"] = true
+		aic.Requirements = append(aic.Requirements, "CLI_INTERFACE")
+	}
+
+	// Detectar exclusões explícitas com maior precisão
+	exclusionPatterns := []string{
+		"sem teste", "sem test", "não teste", "no test", "skip test",
+		"sem docker", "sem container", "no docker", "skip docker",
+		"sem banco", "sem db", "sem database", "no database", "skip database",
+		"sem frontend", "sem ui", "no frontend", "skip frontend",
+		"sem api", "no api", "skip api",
+	}
+
+	for _, pattern := range exclusionPatterns {
+		if strings.Contains(desc, pattern) {
+			aic.Constraints = append(aic.Constraints, "EXPLICIT_EXCLUSIONS")
+			// Marcar o que deve ser excluído
+			if strings.Contains(pattern, "teste") || strings.Contains(pattern, "test") {
+				aic.Adaptations["exclude_tests"] = true
+			}
+			if strings.Contains(pattern, "docker") || strings.Contains(pattern, "container") {
+				aic.Adaptations["exclude_docker"] = true
+			}
+			if strings.Contains(pattern, "banco") || strings.Contains(pattern, "database") || strings.Contains(pattern, "db") {
+				aic.Adaptations["exclude_database"] = true
+			}
+			if strings.Contains(pattern, "frontend") || strings.Contains(pattern, "ui") {
+				aic.Adaptations["exclude_frontend"] = true
+			}
+			if strings.Contains(pattern, "api") {
+				aic.Adaptations["exclude_api"] = true
+			}
+		}
+	}
+
+	// Detectar foco específico no objetivo final
+	if containsAny(desc, []string{"foco", "focus", "objetivo", "goal", "propósito", "purpose", "específico", "specific"}) {
+		aic.Constraints = append(aic.Constraints, "ULTIMATE_GOAL_FOCUS")
+		aic.Adaptations["chameleon_focus"] = true
+	}
+
+	// Detectar necessidade de adaptabilidade
+	if containsAny(desc, []string{"adaptável", "adaptable", "flexível", "flexible", "camaleão", "chameleon", "dinâmico", "dynamic"}) {
+		aic.Adaptations["adaptive_behavior"] = true
+		aic.Requirements = append(aic.Requirements, "ADAPTIVE_STRUCTURE")
 	}
 }
 
@@ -247,32 +314,43 @@ func (aic *AdaptiveInstructionController) buildScopeInstructions(profile Instruc
 	switch profile.ScopeControl {
 	case "minimal":
 		instructions.WriteString(`
-MINIMAL SCOPE MODE - CRITÉRIO DE CAMALEÃO:
-- Inclua APENAS o que foi EXPLICITAMENTE solicitado
-- NÃO adicione recursos extras, mesmo que sejam "boas práticas"
-- Foque na funcionalidade ESSENCIAL para o propósito declarado
-- Mantenha a estrutura mais simples possível
-- Evite over-engineering ou features desnecessárias
-- Cada arquivo deve ter JUSTIFICATIVA direta no propósito
+MINIMAL SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
+- FOQUE EXCLUSIVAMENTE no objetivo final declarado
+- Implemente APENAS o que é ESSENCIAL para atingir o propósito
+- NÃO adicione recursos extras, features opcionais ou "nice to have"
+- ELIMINE qualquer componente que não seja DIRETAMENTE necessário
+- Mantenha arquitetura mais simples e direta possível
+- Cada arquivo deve ter JUSTIFICATIVA clara e específica no contexto
+- ADAPTE-SE precisamente ao escopo solicitado sem expansões
+- PRIORIZE funcionalidade sobre estrutura elaborada
+- EVITE over-engineering, padrões complexos desnecessários
+- FOQUE na entrega do valor core do projeto
 `)
 	case "comprehensive":
 		instructions.WriteString(`
-COMPREHENSIVE SCOPE MODE - CRITÉRIO DE CAMALEÃO:
-- Implemente uma solução completa e robusta
-- Inclua boas práticas e recursos avançados
-- Adicione configurações de ambiente profissionais
-- Implemente padrões de arquitetura escaláveis
-- Inclua documentação abrangente
-- Adicione testes, CI/CD e ferramentas de desenvolvimento
+COMPREHENSIVE SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
+- Implemente uma solução COMPLETA e ROBUSTA
+- Inclua TODAS as boas práticas relevantes para o domínio
+- Adicione configurações profissionais de ambiente e deployment
+- Implemente padrões de arquitetura escaláveis e maintíveis
+- Inclua documentação técnica abrangente e exemplos
+- Adicione testes unitários, integração e CI/CD
+- Implemente logging, monitoring e error handling completos
+- Adicione ferramentas de desenvolvimento e debugging
+- ADAPTE-SE ao contexto para fornecer solução enterprise-grade
+- EXPANDA funcionalidades com base no propósito declarado
 `)
 	default:
 		instructions.WriteString(`
-STANDARD SCOPE MODE - CRITÉRIO DE CAMALEÃO:
-- Equilibre funcionalidade essencial com boas práticas
-- Inclua recursos padrão para a linguagem/framework
-- Mantenha estrutura organizada mas não excessiva
-- Adicione documentação básica
-- Inclua configurações padrão de desenvolvimento
+STANDARD SCOPE MODE - CRITÉRIO DE CAMALEÃO ADAPTATIVO:
+- EQUILIBRE funcionalidade essencial com práticas recomendadas
+- Inclua recursos padrão relevantes para linguagem/framework
+- Mantenha estrutura organizada mas não excessivamente complexa
+- Adicione documentação básica e configurações padrão
+- Implemente error handling e logging básicos
+- ADAPTE-SE ao contexto mantendo equilíbrio entre simplicidade e robustez
+- FOQUE no propósito principal com suporte adequado
+- Evite tanto minimalismo excessivo quanto over-engineering
 `)
 	}
 
@@ -283,7 +361,31 @@ STANDARD SCOPE MODE - CRITÉRIO DE CAMALEÃO:
 func (aic *AdaptiveInstructionController) buildAdaptiveInstructions(profile InstructionProfile) string {
 	var instructions strings.Builder
 
-	instructions.WriteString("\nADAPTIVE BEHAVIOR RULES - CRITÉRIO DE CAMALEÃO:\n")
+	instructions.WriteString("\nADAPTIVE BEHAVIOR RULES - SISTEMA CAMALEÃO:\n")
+
+	// Adicionar regras de adaptabilidade específicas
+	instructions.WriteString("PRINCÍPIO DO CAMALEÃO:\n")
+	instructions.WriteString("- ADAPTE-SE precisamente ao contexto e propósito declarado\n")
+	instructions.WriteString("- MUDE a estrutura e complexidade baseado no objetivo final\n")
+	instructions.WriteString("- ELIMINE componentes desnecessários para o propósito específico\n")
+	instructions.WriteString("- MANTENHA consistência e coerência em toda a solução\n")
+	instructions.WriteString("- PRIORIZE o valor entregue sobre padrões genéricos\n")
+	instructions.WriteString("- SEJA PRECISO no escopo sem adicionar elementos não solicitados\n")
+
+	// Regras baseadas em adaptações específicas
+	if aic.Adaptations["chameleon_focus"] == true {
+		instructions.WriteString("\nFOCO CAMALEÃO ATIVADO:\n")
+		instructions.WriteString("- CONCENTRE-SE exclusivamente no objetivo final declarado\n")
+		instructions.WriteString("- REJEITE qualquer tentativa de expandir o escopo\n")
+		instructions.WriteString("- MANTENHA laser focus no propósito específico\n")
+	}
+
+	if aic.Adaptations["adaptive_behavior"] == true {
+		instructions.WriteString("\nCOMPORTAMENTO ADAPTATIVO ATIVADO:\n")
+		instructions.WriteString("- AJUSTE a arquitetura baseada no contexto específico\n")
+		instructions.WriteString("- MUDE padrões e estruturas conforme necessário\n")
+		instructions.WriteString("- SEJA FLEXÍVEL na implementação mantendo coerência\n")
+	}
 
 	// Regras de foco
 	if len(profile.FocusAreas) > 0 {
@@ -329,22 +431,35 @@ func (aic *AdaptiveInstructionController) buildAdaptiveInstructions(profile Inst
 func (aic *AdaptiveInstructionController) buildValidationRules(profile InstructionProfile) string {
 	var rules strings.Builder
 
-	rules.WriteString("\nVALIDATION RULES - CRITÉRIO DE CAMALEÃO:\n")
+	rules.WriteString("\nVALIDATION RULES - SISTEMA CAMALEÃO:\n")
 	rules.WriteString(fmt.Sprintf("QUALITY THRESHOLD: %.1f%%\n", profile.QualityThreshold))
 	rules.WriteString(fmt.Sprintf("STRICTNESS LEVEL: %d/10\n", profile.StrictnessLevel))
 
-	rules.WriteString("\nCOMPLIANCE CHECKS:\n")
-	rules.WriteString("1. Verificar se TODOS os requisitos explícitos foram atendidos\n")
-	rules.WriteString("2. Validar que NENHUM constraint foi violado\n")
-	rules.WriteString("3. Confirmar alinhamento com o propósito declarado\n")
-	rules.WriteString("4. Verificar consistência entre camadas\n")
-	rules.WriteString("5. Validar qualidade do código gerado\n")
+	rules.WriteString("\nCOMPLIANCE CHECKS - VALIDAÇÃO CAMALEÃO:\n")
+	rules.WriteString("1. VERIFICAR alinhamento preciso com o objetivo final\n")
+	rules.WriteString("2. VALIDAR que TODOS os requisitos explícitos foram atendidos\n")
+	rules.WriteString("3. CONFIRMAR que NENHUM constraint foi violado\n")
+	rules.WriteString("4. GARANTIR que não há componentes desnecessários\n")
+	rules.WriteString("5. VERIFICAR consistência e coerência entre todos os elementos\n")
+	rules.WriteString("6. VALIDAR qualidade e funcionalidade do código gerado\n")
+	rules.WriteString("7. ASSEGURAR que o escopo não foi expandido sem justificativa\n")
+	rules.WriteString("8. CONFIRMAR que a solução é direta e focada no propósito\n")
 
 	if profile.StrictnessLevel >= 8 {
-		rules.WriteString("\nSTRICT MODE ACTIVE:\n")
-		rules.WriteString("- Rejeitar qualquer desvio do escopo definido\n")
-		rules.WriteString("- Aplicar validação rigorosa de cada componente\n")
-		rules.WriteString("- Priorizar precisão sobre abrangência\n")
+		rules.WriteString("\nSTRICT CHAMELEON MODE ACTIVE:\n")
+		rules.WriteString("- REJEITAR qualquer desvio do escopo rigorosamente definido\n")
+		rules.WriteString("- APLICAR validação ultra-rigorosa de cada componente\n")
+		rules.WriteString("- PRIORIZAR precisão absoluta sobre abrangência\n")
+		rules.WriteString("- ELIMINAR qualquer elemento que não tenha justificativa direta\n")
+		rules.WriteString("- MANTER foco laser no objetivo final declarado\n")
+	}
+
+	// Adicionar regras específicas baseadas no escopo
+	if profile.ScopeControl == "minimal" {
+		rules.WriteString("\nMINIMAL SCOPE VALIDATION:\n")
+		rules.WriteString("- GARANTIR que apenas o essencial foi implementado\n")
+		rules.WriteString("- REJEITAR qualquer feature extra ou 'nice to have'\n")
+		rules.WriteString("- VALIDAR que cada arquivo tem justificativa clara\n")
 	}
 
 	return rules.String()
@@ -473,49 +588,250 @@ func (aic *AdaptiveInstructionController) constraintViolated(constraint string, 
 
 // hasExtraFeatures verifica se há recursos extras não solicitados
 func (aic *AdaptiveInstructionController) hasExtraFeatures(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar recursos extras
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		// Verificar se há arquivos de teste quando não solicitados
+		if aic.Adaptations["exclude_tests"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "test") ||
+					strings.Contains(strings.ToLower(filename), "spec") ||
+					strings.Contains(strings.ToLower(filename), ".test.") ||
+					strings.Contains(strings.ToLower(filename), ".spec.") {
+					return true
+				}
+			}
+		}
+
+		// Verificar se há arquivos Docker quando não solicitados
+		if aic.Adaptations["exclude_docker"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "docker") ||
+					strings.Contains(strings.ToLower(filename), "compose") {
+					return true
+				}
+			}
+		}
+
+		// Verificar se há muitos arquivos para escopo mínimo
+		if aic.Scope == "minimal" && len(files) > 10 {
+			return true
+		}
+	}
 	return false
 }
 
 // hasAPIEndpoints verifica se há endpoints de API
 func (aic *AdaptiveInstructionController) hasAPIEndpoints(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar endpoints de API
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		for filename, content := range files {
+			if strings.Contains(strings.ToLower(filename), "route") ||
+				strings.Contains(strings.ToLower(filename), "controller") ||
+				strings.Contains(strings.ToLower(filename), "handler") ||
+				strings.Contains(strings.ToLower(filename), "endpoint") {
+				return true
+			}
+
+			// Verificar conteúdo do arquivo
+			if contentStr, ok := content.(string); ok {
+				contentLower := strings.ToLower(contentStr)
+				if strings.Contains(contentLower, "router") ||
+					strings.Contains(contentLower, "endpoint") ||
+					strings.Contains(contentLower, "http") ||
+					strings.Contains(contentLower, "rest") ||
+					strings.Contains(contentLower, "api") {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
 
 // hasFrontendInterface verifica se há interface frontend
 func (aic *AdaptiveInstructionController) hasFrontendInterface(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar interface frontend
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		for filename, content := range files {
+			if strings.Contains(strings.ToLower(filename), "component") ||
+				strings.Contains(strings.ToLower(filename), "page") ||
+				strings.Contains(strings.ToLower(filename), "view") ||
+				strings.Contains(strings.ToLower(filename), ".html") ||
+				strings.Contains(strings.ToLower(filename), ".css") ||
+				strings.Contains(strings.ToLower(filename), ".scss") ||
+				strings.Contains(strings.ToLower(filename), ".jsx") ||
+				strings.Contains(strings.ToLower(filename), ".tsx") ||
+				strings.Contains(strings.ToLower(filename), ".vue") {
+				return true
+			}
+
+			// Verificar conteúdo do arquivo
+			if contentStr, ok := content.(string); ok {
+				contentLower := strings.ToLower(contentStr)
+				if strings.Contains(contentLower, "component") ||
+					strings.Contains(contentLower, "render") ||
+					strings.Contains(contentLower, "jsx") ||
+					strings.Contains(contentLower, "html") ||
+					strings.Contains(contentLower, "css") {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
 
 // hasComprehensiveTesting verifica se há testes abrangentes
 func (aic *AdaptiveInstructionController) hasComprehensiveTesting(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar testes abrangentes
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		testFileCount := 0
+		for filename := range files {
+			if strings.Contains(strings.ToLower(filename), "test") ||
+				strings.Contains(strings.ToLower(filename), "spec") ||
+				strings.Contains(strings.ToLower(filename), ".test.") ||
+				strings.Contains(strings.ToLower(filename), ".spec.") {
+				testFileCount++
+			}
+		}
+		return testFileCount >= 2 // Pelo menos 2 arquivos de teste para ser considerado "abrangente"
+	}
 	return false
 }
 
 // hasDatabaseIntegration verifica se há integração com banco de dados
 func (aic *AdaptiveInstructionController) hasDatabaseIntegration(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar integração com banco de dados
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		for filename, content := range files {
+			if strings.Contains(strings.ToLower(filename), "database") ||
+				strings.Contains(strings.ToLower(filename), "db") ||
+				strings.Contains(strings.ToLower(filename), "model") ||
+				strings.Contains(strings.ToLower(filename), "schema") ||
+				strings.Contains(strings.ToLower(filename), "migration") {
+				return true
+			}
+
+			// Verificar conteúdo do arquivo
+			if contentStr, ok := content.(string); ok {
+				contentLower := strings.ToLower(contentStr)
+				if strings.Contains(contentLower, "database") ||
+					strings.Contains(contentLower, "mongoose") ||
+					strings.Contains(contentLower, "sequelize") ||
+					strings.Contains(contentLower, "prisma") ||
+					strings.Contains(contentLower, "sql") ||
+					strings.Contains(contentLower, "mongodb") ||
+					strings.Contains(contentLower, "mysql") ||
+					strings.Contains(contentLower, "postgres") {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
 
 // hasContainerization verifica se há containerização
 func (aic *AdaptiveInstructionController) hasContainerization(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar containerização
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		for filename := range files {
+			if strings.Contains(strings.ToLower(filename), "docker") ||
+				strings.Contains(strings.ToLower(filename), "compose") ||
+				strings.Contains(strings.ToLower(filename), "k8s") ||
+				strings.Contains(strings.ToLower(filename), "kubernetes") {
+				return true
+			}
+		}
+	}
 	return false
 }
 
 // hasUnnecessaryComponents verifica se há componentes desnecessários
 func (aic *AdaptiveInstructionController) hasUnnecessaryComponents(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar componentes desnecessários
+	if aic.Scope != "minimal" {
+		return false
+	}
+
+	// Para escopo mínimo, verificar se há componentes desnecessários
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		unnecessaryPatterns := []string{
+			"example", "sample", "demo", "template", "boilerplate",
+			"readme", "license", "changelog", "contributing",
+			"eslint", "prettier", "husky", "commitlint",
+		}
+
+		for filename := range files {
+			for _, pattern := range unnecessaryPatterns {
+				if strings.Contains(strings.ToLower(filename), pattern) {
+					return true
+				}
+			}
+		}
+
+		// Verificar se há muitos arquivos de configuração
+		configFileCount := 0
+		for filename := range files {
+			if strings.Contains(strings.ToLower(filename), "config") ||
+				strings.Contains(strings.ToLower(filename), ".env") ||
+				strings.Contains(strings.ToLower(filename), "settings") {
+				configFileCount++
+			}
+		}
+
+		if configFileCount > 3 {
+			return true
+		}
+	}
 	return false
 }
 
 // hasExplicitlyExcludedComponents verifica se há componentes explicitamente excluídos
 func (aic *AdaptiveInstructionController) hasExplicitlyExcludedComponents(jsonData map[string]interface{}) bool {
-	// Implementar lógica para detectar componentes explicitamente excluídos
+	if files, ok := jsonData["files"].(map[string]interface{}); ok {
+		// Verificar exclusões específicas
+		if aic.Adaptations["exclude_tests"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "test") ||
+					strings.Contains(strings.ToLower(filename), "spec") {
+					return true
+				}
+			}
+		}
+
+		if aic.Adaptations["exclude_docker"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "docker") {
+					return true
+				}
+			}
+		}
+
+		if aic.Adaptations["exclude_database"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "database") ||
+					strings.Contains(strings.ToLower(filename), "db") ||
+					strings.Contains(strings.ToLower(filename), "model") {
+					return true
+				}
+			}
+		}
+
+		if aic.Adaptations["exclude_frontend"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "component") ||
+					strings.Contains(strings.ToLower(filename), "page") ||
+					strings.Contains(strings.ToLower(filename), ".html") ||
+					strings.Contains(strings.ToLower(filename), ".css") {
+					return true
+				}
+			}
+		}
+
+		if aic.Adaptations["exclude_api"] == true {
+			for filename := range files {
+				if strings.Contains(strings.ToLower(filename), "route") ||
+					strings.Contains(strings.ToLower(filename), "controller") ||
+					strings.Contains(strings.ToLower(filename), "handler") {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
 
